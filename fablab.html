@@ -1,0 +1,2490 @@
+import React, { useState, useMemo, useRef, useEffect, Component } from 'react';
+import { 
+  Eye, EyeOff, Plus, LogOut, Users, FileText, Monitor, Shield, BookOpen, Wrench, 
+  Upload, Key, CheckCircle, Package, ShoppingCart, Send, ClipboardList, Settings, 
+  X, CheckCircle2, XCircle, Minus, Trash2, Mail, Inbox, AlertCircle, Search, 
+  Download, Database, Archive, PlusCircle, Layers, ArrowLeftRight, Link as LinkIcon, 
+  RefreshCw, History, Moon, Sun, Bot, FileSpreadsheet, Pencil, Lock, MessageSquare,
+  BookOpenCheck, FileDown, FileLock2, FolderOpen, UploadCloud, Cloud, HardDrive, DownloadCloud,
+  ExternalLink, Leaf, Briefcase, Calendar, Target
+} from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+
+// ==========================================
+// 1. CONFIGURATION & CONSTANTES
+// ==========================================
+const INITIAL_CLASSES = ['Seconde SI-CIT', '1ère STI2D', 'Terminale ITEC', 'Terminale SIN', 'Terminale EE', 'Terminale AC'];
+const CATEGORIES_MATERIEL = ['Matériaux Bruts', 'Composants Électroniques', 'Cartes Arduino & Microcontrôleurs', 'Mécanique & Visserie', 'Outillage', 'Impression 3D', 'Systèmes (TP/TD)'];
+const TYPES_DOCUMENTS = ['Cours', 'TD', 'TP', 'Activité', 'Évaluation', 'Ressource / Doc Technique', 'Dossier Partagé (SolidWorks, etc.)'];
+
+const initialUsers = [
+  { id: '0', role: 'admin', name: 'Administrateur Principal', username: 'admin', password: '123', status: 'active' },
+  { id: 'test_student', role: 'student', name: 'Élève Test', username: 'aa', password: '123', status: 'active', className: 'Terminale ITEC' },
+  { id: 'test_teacher', role: 'teacher', name: 'Professeur Test', username: 'bb', password: '123', status: 'active' },
+  { id: 'test_ddfpt', role: 'ddfpt', name: 'DDFPT Test', username: 'cc', password: '123', status: 'active' }
+];
+
+const Logo = ({ className = "h-10 w-auto" }) => (
+  <svg className={className} viewBox="10 10 270 105" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#00b4d8" />
+        <stop offset="100%" stopColor="#023e8a" />
+      </linearGradient>
+    </defs>
+    <circle cx="60" cy="60" r="50" fill="url(#logoGrad)" />
+    <g stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M 75 35 L 45 45 L 60 85" />
+      <path d="M 52 65 L 75 60" />
+    </g>
+    <circle cx="75" cy="35" r="5.5" fill="white" />
+    <circle cx="45" cy="45" r="5.5" fill="white" />
+    <circle cx="75" cy="60" r="5.5" fill="white" />
+    <circle cx="60" cy="85" r="5.5" fill="white" />
+    <circle cx="52" cy="65" r="4.5" fill="white" />
+    
+    <rect x="130" y="20" width="4" height="80" fill="#1e3a8a" />
+    <text x="150" y="45" fontFamily="sans-serif" fontSize="24" fontWeight="700" fill="#00b4d8" letterSpacing="2">LYCÉE</text>
+    <text x="150" y="78" fontFamily="sans-serif" fontSize="34" fontWeight="900" fill="#1e3a8a" letterSpacing="2">SAINT</text>
+    <text x="150" y="108" fontFamily="sans-serif" fontSize="34" fontWeight="900" fill="#1e3a8a" letterSpacing="2">RÉMI</text>
+  </svg>
+);
+
+// ==========================================
+// 2. INITIALISATION FIREBASE
+// ==========================================
+let app, auth, db, storage;
+try {
+  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+  if(firebaseConfig) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  }
+} catch (e) {
+  console.error("Firebase non configuré ou erreur :", e);
+}
+
+// ==========================================
+// 3. HELPERS & API
+// ==========================================
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) { console.error("Caught error:", error, errorInfo); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="p-8 bg-white rounded-2xl shadow-xl max-w-lg w-full text-center border-t-4 border-red-500">
+            <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-black text-gray-800 mb-2">Une erreur inattendue est survenue</h2>
+            <p className="text-sm text-gray-600 mb-6 bg-gray-100 p-4 rounded-lg font-mono text-left overflow-auto max-h-32">
+              {String(this.state.error?.message || this.state.error || "Erreur critique de l'application.")}
+            </p>
+            <button onClick={() => window.location.reload()} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all w-full">
+              Rafraîchir la page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const callGeminiAPI = async (prompt, userRole) => {
+  const apiKey = ""; 
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  const roleContext = userRole === 'student' ? "Tu parles à un élève STI2D. Guide-le sans faire le travail à sa place." : "Tu parles à un enseignant STI2D. Aide-le à gérer le labo, préparer ses séquences et évaluer.";
+  const systemInstruction = `Tu es un assistant expert en Sciences de l'Ingénieur (SII/STI2D). ${roleContext}`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], systemInstruction: { parts: [{ text: systemInstruction }] } })
+    });
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Je n'ai pas pu formuler de réponse.";
+  } catch (err) {
+    return "L'IA est indisponible pour le moment.";
+  }
+};
+
+const generateCredentials = (firstName, lastName) => {
+  if (!firstName || !lastName) return { username: '', password: '' };
+  const clean = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g, '').toLowerCase();
+  const base = `${clean(lastName)}.${clean(firstName)}`;
+  return { username: base, password: Math.random().toString(36).slice(-4) };
+};
+
+const downloadOrderExport = (order, materials) => {
+  let csvContent = "Ref. Composant;Quantite;Prix Unitaire;Total;Lien d'achat\n";
+  let totalCalculated = 0;
+  order.items.forEach(item => {
+    let p = 0; let n = "Inconnu"; let url = "";
+    if (item.isCustom) {
+      p = parseFloat(item.price) || 0; n = item.name; url = item.url || '';
+    } else {
+      const mat = materials.find(m => m.id === item.materialId);
+      if(mat) { p = mat.price || 0; n = mat.name; url = mat.url || ''; }
+    }
+    const lineTotal = p * item.qty;
+    totalCalculated += lineTotal;
+    csvContent += `"${n}";${item.qty};${p};${lineTotal.toFixed(2)};"${url}"\n`;
+  });
+  csvContent += `;;;TOTAL;${totalCalculated.toFixed(2)}\n`;
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Bon_Commande_${order.id}.csv`; link.click();
+};
+
+// ==========================================
+// 4. COMPOSANTS UI DE BASE
+// ==========================================
+const TabButton = ({ active, icon: Icon, label, onClick, badge }) => (
+  <button onClick={onClick} className={`px-4 py-3 font-bold text-sm rounded-t-xl transition-all flex items-center gap-2 whitespace-nowrap relative ${active ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 border-b-transparent shadow-sm translate-y-[1px] z-10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+    <Icon size={16}/> {label}
+    {badge > 0 && <span className="bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[9px] ml-1">{badge}</span>}
+  </button>
+);
+
+const PasswordReveal = ({ password }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="flex items-center justify-start gap-2">
+      <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs min-w-[60px] text-center dark:text-gray-200">
+        {show ? password : '••••••'}
+      </span>
+      <button onClick={() => setShow(!show)} className="text-gray-400 hover:text-blue-500 transition-colors">
+        {show ? <EyeOff size={14} /> : <Eye size={14} />}
+      </button>
+    </div>
+  );
+};
+
+const Linkify = ({ text }) => {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return (
+    <span className="whitespace-pre-wrap">
+      {parts.map((part, i) => 
+        part && part.startsWith('http') 
+          ? <a key={`link-${i}`} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 dark:text-blue-400 underline hover:text-blue-700 inline-flex items-center gap-1"><LinkIcon size={12}/>Lien</a> 
+          : <span key={`text-${i}`}>{part}</span>
+      )}
+    </span>
+  );
+};
+
+const MaterialCard = ({ material, hidePrice, onAdd, allowOutOfStockOrder = false, onDelete }) => {
+  const isAvailable = material.stock > 0;
+  const isClickable = isAvailable || allowOutOfStockOrder;
+  
+  return (
+    <div className={`bg-white dark:bg-gray-800 border-2 rounded-xl p-4 flex flex-col justify-between transition-all duration-200 group relative overflow-hidden ${isClickable ? 'border-gray-100 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md' : 'border-red-100 dark:border-red-900 opacity-75 grayscale-[0.5] cursor-not-allowed'}`}>
+      <div className="flex justify-between items-start mb-3">
+        <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-tight pr-2">{material.name}</h4>
+        <div className="flex flex-col items-end gap-1">
+          {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(material.id, material.name); }} className="text-gray-400 hover:text-red-500 bg-gray-50 dark:bg-gray-700 p-1 rounded transition-colors mb-1"><Trash2 size={14}/></button>}
+          {isAvailable ? <span className="flex items-center gap-1 text-[10px] uppercase font-bold bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-2 py-1 rounded-full"><CheckCircle2 size={12}/> {material.stock} dispo</span> : <span className="flex items-center gap-1 text-[10px] uppercase font-bold bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-2 py-1 rounded-full"><XCircle size={12}/> Rupture</span>}
+        </div>
+      </div>
+      {material.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 italic">{material.description}</p>}
+      <div className="mt-auto flex justify-between items-end border-t dark:border-gray-700 pt-3">
+        <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-col">
+          <span>Unité: <strong className="text-gray-700 dark:text-gray-300">{material.unit}</strong></span>
+          {material.carbonFootprint > 0 && <span className="flex items-center gap-1 text-[10px] text-green-600 mt-1"><Leaf size={10}/> {material.carbonFootprint} kg CO2e</span>}
+        </div>
+        {!hidePrice && <div className="font-black text-lg text-gray-900 dark:text-white">{material.price.toFixed(2)} €</div>}
+      </div>
+      {hidePrice && isClickable && (
+        <button onClick={(e) => { e.stopPropagation(); onAdd && onAdd(material); }} className="mt-3 w-full bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 active:scale-95 shadow-md flex items-center justify-center gap-2 text-xs font-bold transition-all">
+          <Plus size={14}/> Ajouter
+        </button>
+      )}
+    </div>
+  );
+};
+
+const Footer = ({ setShowCharte }) => (
+  <footer className="mt-auto py-6 border-t border-gray-200 dark:border-gray-800 text-center text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 z-10 relative">
+    <div className="max-w-7xl mx-auto px-4 flex flex-col items-center gap-2">
+      <p className="font-bold text-gray-700 dark:text-gray-300">© {new Date().getFullYear()} H.Hammadou. Tous droits réservés.</p>
+      <p className="max-w-2xl">La plateforme logicielle et son code source appartiennent exclusivement à H.Hammadou.</p>
+      <button onClick={() => setShowCharte(true)} className="text-blue-500 hover:text-blue-600 font-bold underline mt-1 cursor-pointer transition-colors">Lire la Charte de Responsabilité</button>
+    </div>
+  </footer>
+);
+
+// ==========================================
+// 5. MODALES
+// ==========================================
+const CharteModal = ({ onClose }) => (
+  <div className="fixed inset-0 bg-black/70 z-[600] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+    <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl max-w-2xl w-full shadow-2xl border dark:border-gray-700 flex flex-col max-h-[90vh]">
+      <div className="flex justify-between items-center mb-6 border-b dark:border-gray-700 pb-4">
+         <h2 className="text-xl sm:text-2xl font-black dark:text-white text-blue-600 flex items-center gap-3"><Shield size={28}/> Charte de Responsabilité</h2>
+         <button onClick={onClose} className="text-gray-400 hover:text-red-500 bg-gray-100 dark:bg-gray-700 p-2 rounded-full transition-all"><X size={20}/></button>
+      </div>
+      <div className="overflow-y-auto pr-2 space-y-4 text-gray-700 dark:text-gray-300 text-sm leading-relaxed custom-scrollbar">
+         <p>L'accès au FabLab du <strong>Lycée Saint Rémi</strong> et l'utilisation de ses ressources matérielles impliquent l'acceptation sans réserve de la présente charte par tous les utilisateurs.</p>
+         <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base mt-4 text-blue-500">1. Respect du Matériel et des Espaces</h3>
+         <p>Chaque élève s'engage à utiliser le matériel mis à sa disposition avec soin, précaution et en respectant scrupuleusement les consignes. Le plan de travail doit être rangé et nettoyé après chaque utilisation. Tout dysfonctionnement ou casse doit être immédiatement signalé.</p>
+         <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base mt-4 text-blue-500">2. Responsabilité Individuelle et Collective</h3>
+         <p>Le matériel prêté ou emprunté l'est sous la responsabilité de l'élève demandeur. En cas de dégradation ou de perte imputable à une négligence, la responsabilité de l'élève est engagée. S'il s'agit d'un projet de groupe et que la responsabilité individuelle ne peut être établie, le groupe entier sera tenu responsable. Le remboursement du matériel dégradé pourra être exigé par l'établissement.</p>
+         <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base mt-4 text-blue-500">3. Emprunts et Retours</h3>
+         <p>Le matériel marqué "À Rendre" dans l'inventaire doit être restitué au professeur responsable dans le même état de fonctionnement qu'à son emprunt. Les consommables doivent être utilisés avec discernement pour éviter tout gaspillage.</p>
+         <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base mt-4 text-blue-500">4. Sécurité et EPI</h3>
+         <p>L'utilisation des machines n'est autorisée qu'après formation. Le port des Équipements de Protection Individuelle (EPI) est obligatoire lorsque stipulé.</p>
+         <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base mt-4 text-blue-500">5. Droits de la Plateforme Logicielle</h3>
+         <p>Cette plateforme a été conçue et développée par H.Hammadou. Son architecture et son code source sont sa propriété exclusive. Toute copie ou commercialisation est strictement interdite.</p>
+      </div>
+      <div className="mt-6 pt-4 border-t dark:border-gray-700 flex justify-end">
+         <button onClick={onClose} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md">J'ai lu et j'accepte</button>
+      </div>
+    </div>
+  </div>
+);
+
+const GlobalModal = ({ config, onClose }) => {
+  if (!config.isOpen) return null;
+  const [val, setVal] = useState('');
+  useEffect(() => { if (config.isOpen) setVal(''); }, [config.isOpen]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if(config.type === 'prompt' && val.trim()==='') return; 
+      if(config.onConfirm) config.onConfirm(config.type === 'prompt' ? val : null); 
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[500] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl border border-gray-100 dark:border-gray-700 animate-in zoom-in-95">
+        <h3 className="font-bold text-lg mb-2 flex items-center gap-2 dark:text-white">
+          {config.type === 'alert' ? <AlertCircle className="text-blue-500"/> : <CheckCircle className="text-green-500"/>} {config.title}
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-6 whitespace-pre-line">
+          {typeof config.message === 'object' ? JSON.stringify(config.message) : config.message}
+        </p>
+        {config.type === 'prompt' && (
+          <input type="text" autoFocus value={val} onChange={e=>setVal(e.target.value)} onKeyDown={handleKeyDown} className="w-full p-3 mb-6 border dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white" />
+        )}
+        <div className="flex gap-2 justify-end">
+          {config.type !== 'alert' && <button onClick={onClose} className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm font-bold dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Annuler</button>}
+          <button onClick={() => { if(config.type === 'prompt' && !val.trim()) return; config.onConfirm && config.onConfirm(config.type === 'prompt' ? val : null); onClose(); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm active:scale-95 transition-all">Confirmer</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const GoogleRegistrationModal = ({ pendingUser, classesList, onSubmit, onClose }) => {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [userClass, setUserClass] = useState(classesList[0] || '');
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[450] flex items-center justify-center p-4 animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl max-w-md w-full shadow-2xl border dark:border-gray-700">
+        <h2 className="text-2xl font-black mb-2 dark:text-white text-center">Inscription Utilisateur</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 text-center">Ce compte ({pendingUser.email}) n'est pas encore enregistré. Renseignez vos infos.</p>
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(firstName, lastName, userClass, pendingUser); }} className="space-y-4">
+          <div className="flex gap-2">
+            <input type="text" placeholder="Prénom" value={firstName} onChange={e=>setFirstName(e.target.value)} required className="flex-1 p-3 border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+            <input type="text" placeholder="Nom" value={lastName} onChange={e=>setLastName(e.target.value)} required className="flex-1 p-3 border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+          </div>
+          <select value={userClass} onChange={e=>setUserClass(e.target.value)} className="w-full p-3 border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-xl outline-none dark:text-white">
+            {classesList.map(c => <option key={c} value={c}>{c}</option>)}
+            <option value="Professeur">Je suis Professeur</option>
+          </select>
+          <div className="pt-4 flex gap-2">
+            <button type="button" onClick={onClose} className="flex-1 py-3 font-bold border dark:border-gray-600 rounded-xl dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Annuler</button>
+            <button type="submit" className="flex-1 bg-blue-600 text-white py-3 font-bold rounded-xl shadow-lg active:scale-95 transition-all">S'inscrire</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const SettingsModal = ({ currentUser, onUpdateProfile, onLinkGoogle, onClose, isDarkMode, setIsDarkMode, modals }) => {
+  const [newUsername, setNewUsername] = useState(currentUser.username);
+  const [currentPwdInput, setCurrentPwdInput] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [message, setMessage] = useState({ text: '', type: '' });
+
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleGenerateRandom = () => {
+    const randomPwd = Math.random().toString(36).slice(-6);
+    setNewPwd(randomPwd); 
+    setConfirmPwd(randomPwd);
+    setShowNew(true);
+    setShowConfirm(true);
+  };
+
+  const handleGoogleLink = () => {
+    modals.showPrompt("Lier un compte", "Veuillez entrer l'adresse E-mail à lier à votre profil :", (email) => {
+      if (email && email.includes('@')) {
+        onLinkGoogle(currentUser.id, 'g-' + Date.now(), email.trim());
+        setMessage({ text: 'Compte lié avec succès !', type: 'success' });
+      } else {
+        setMessage({ text: 'Adresse email invalide.', type: 'error' });
+      }
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    // Vérification stricte du mot de passe actuel
+    if (currentPwdInput !== currentUser.password) {
+      return setMessage({ text: 'Le mot de passe actuel est incorrect.', type: 'error' });
+    }
+
+    let finalPwd = currentUser.password;
+
+    // Si l'utilisateur tente de changer de mot de passe
+    if (newPwd || confirmPwd) {
+      if (newPwd !== confirmPwd) return setMessage({ text: 'Les nouveaux mots de passe sont différents.', type: 'error' });
+      if (newPwd.length < 3) return setMessage({ text: 'Le nouveau mot de passe est trop court.', type: 'error' });
+      finalPwd = newPwd;
+    }
+    
+    onUpdateProfile(currentUser.id, newUsername, finalPwd);
+    setMessage({ text: 'Profil mis à jour !', type: 'success' });
+    setTimeout(onClose, 1500);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[350] p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border dark:border-gray-700 flex flex-col max-h-[90vh]">
+        <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-b dark:border-gray-700 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="bg-white p-1 rounded border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-center">
+               <Logo className="h-6 w-auto" />
+            </div>
+            <h2 className="text-lg font-bold dark:text-white flex items-center gap-2"><Settings size={20}/> Paramètres</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-red-500"><X size={24}/></button>
+        </div>
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border dark:border-gray-600">
+            <span className="font-semibold dark:text-gray-200 flex items-center gap-2">{isDarkMode ? <Moon size={18}/> : <Sun size={18}/>} Mode Sombre</span>
+            <button onClick={() => setIsDarkMode(!isDarkMode)} className={`w-12 h-6 rounded-full relative transition-colors ${isDarkMode ? 'bg-blue-600' : 'bg-gray-300'}`}><span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isDarkMode ? 'left-7' : 'left-1'}`} /></button>
+          </div>
+          <form id="settingsForm" onSubmit={handleSubmit} className="space-y-4">
+            <h3 className="font-bold border-b dark:border-gray-700 pb-2 dark:text-white">Identifiants Locaux</h3>
+            <div>
+              <label className="block text-xs font-bold mb-1 dark:text-gray-300">Identifiant</label>
+              <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} required className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white outline-none focus:border-blue-500" />
+            </div>
+            
+            <div className="pt-2">
+              <label className="block text-xs font-bold mb-1 text-blue-600 dark:text-blue-400">Mot de passe actuel (Requis) *</label>
+              <div className="relative">
+                <input type={showCurrent ? "text" : "password"} value={currentPwdInput} onChange={e => setCurrentPwdInput(e.target.value)} required className="w-full p-2 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:text-white outline-none focus:border-blue-500 pr-10" placeholder="Saisissez pour autoriser la modification" />
+                <button type="button" onClick={() => setShowCurrent(!showCurrent)} className="absolute right-3 top-2.5 text-gray-400 hover:text-blue-500">{showCurrent ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold mb-1 dark:text-gray-300">Nouveau mot de passe</label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input type={showNew ? "text" : "password"} value={newPwd} onChange={e => setNewPwd(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white outline-none focus:border-blue-500 pr-10" placeholder="(Optionnel)" />
+                  <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-2.5 text-gray-400 hover:text-blue-500">{showNew ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+                </div>
+                <button type="button" onClick={handleGenerateRandom} className="p-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 dark:text-white active:scale-95 transition-all" title="Générer un mot de passe"><RefreshCw size={16}/></button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold mb-1 dark:text-gray-300">Confirmer le nouveau</label>
+              <div className="relative">
+                <input type={showConfirm ? "text" : "password"} value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} className={`w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white outline-none focus:border-blue-500 pr-10 ${confirmPwd && newPwd !== confirmPwd ? 'border-red-500 focus:border-red-500' : ''}`} placeholder="(Optionnel)" />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-2.5 text-gray-400 hover:text-blue-500">{showConfirm ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+              </div>
+            </div>
+          </form>
+          {currentUser.role !== 'admin' && (
+            <div className="pt-4 border-t dark:border-gray-700">
+              <h3 className="font-bold mb-3 dark:text-white">Liaison Sauvegarde (E-mail)</h3>
+              {currentUser.googleUid ? <div className="p-2 bg-green-50 dark:bg-green-900/30 text-green-700 text-xs rounded-lg border border-green-200">Lié : {currentUser.googleEmail}</div> : <button type="button" onClick={async () => { const provider = new GoogleAuthProvider(); const res = await signInWithPopup(auth, provider); onLinkGoogle(currentUser.id, res.user.uid, res.user.email); }} className="w-full py-2 bg-white dark:bg-gray-700 border-2 border-red-100 text-red-600 rounded-xl font-bold active:scale-95 transition-all">Lier mon compte Gmail</button>}
+            </div>
+          )}
+          {message.text && <div className={`p-3 rounded-lg text-xs ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{message.text}</div>}
+        </div>
+        <div className="p-4 bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 flex gap-3">
+          <button type="button" onClick={onClose} className="flex-1 py-2 border dark:border-gray-600 rounded-lg font-bold dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Annuler</button>
+          <button type="submit" form="settingsForm" className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold active:scale-95 transition-all">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 6. SOUS-COMPOSANTS MÉTIERS & SECTIONS
+// ==========================================
+
+const AIAssistant = ({ currentUser }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([{ role: 'assistant', content: 'Bonjour ! Comment puis-je vous aider ?' }]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if(!input.trim()) return;
+    const userMsg = input;
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setInput('');
+    setIsLoading(true);
+    const reply = await callGeminiAPI(userMsg, currentUser.role);
+    setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+    setIsLoading(false);
+  };
+
+  useEffect(() => { if(messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[100]">
+      {isOpen ? (
+        <div className="bg-white dark:bg-gray-800 w-80 sm:w-96 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-[30rem]">
+          <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
+            <span className="font-bold flex items-center gap-2"><Bot size={20}/> Assistant IA</span>
+            <button onClick={() => setIsOpen(false)} className="hover:text-blue-200 transition-colors"><X size={20}/></button>
+          </div>
+          <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3 custom-scrollbar bg-gray-50 dark:bg-gray-900">
+            {messages.map((m, i) => (
+              <div key={i} className={`p-3 rounded-xl text-sm max-w-[85%] ${m.role==='user'?'bg-blue-600 text-white ml-auto rounded-br-none':'bg-white dark:bg-gray-800 border dark:border-gray-700 dark:text-gray-200 mr-auto rounded-bl-none shadow-sm'}`}>
+                <Linkify text={m.content} />
+              </div>
+            ))}
+            {isLoading && <div className="text-xs text-gray-500 flex items-center gap-2"><RefreshCw size={12} className="animate-spin"/> Réflexion en cours...</div>}
+            <div ref={messagesEndRef} />
+          </div>
+          <form onSubmit={handleSend} className="p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-2">
+            <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Posez une question..." className="flex-1 p-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 outline-none text-sm dark:text-white focus:border-blue-500" />
+            <button type="submit" disabled={isLoading} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"><Send size={18}/></button>
+          </form>
+        </div>
+      ) : (
+        <button onClick={() => setIsOpen(true)} className="bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all flex items-center justify-center relative">
+           <Bot size={28}/>
+           <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-gray-900 animate-pulse"></span>
+        </button>
+      )}
+    </div>
+  );
+};
+
+
+const UserManagementSection = ({ users, setUsers, currentUserRole, classesList, modals }) => {
+  const pendingUsers = users.filter(u => u.status === 'pending');
+  const activeUsers = users.filter(u => u.status === 'active');
+  const canManageUsers = ['admin', 'ddfpt'].includes(currentUserRole);
+  
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  
+  // Manual Add Form
+  const [newFn, setNewFn] = useState('');
+  const [newLn, setNewLn] = useState('');
+  const [newRole, setNewRole] = useState('student');
+  const [newClass, setNewClass] = useState(classesList[0] || '');
+
+  const approveUser = (id) => setUsers(users.map(u => u.id === id ? { ...u, status: 'active' } : u));
+  const rejectUser = (id) => modals.showConfirm("Refuser", "Supprimer cet utilisateur ?", () => setUsers(users.filter(u => u.id !== id)));
+
+  const handleManualAdd = (e) => {
+    e.preventDefault();
+    if (!newFn || !newLn) return modals.showAlert("Erreur", "Veuillez remplir le prénom et le nom.");
+    if (currentUserRole === 'ddfpt' && newRole === 'admin') return modals.showAlert("Erreur", "Le DDFPT ne peut pas créer de compte Administrateur.");
+
+    const creds = generateCredentials(newFn, newLn);
+    const newUser = {
+      id: Date.now().toString(),
+      name: `${newFn} ${newLn}`,
+      username: creds.username,
+      password: creds.password,
+      role: newRole,
+      className: newRole === 'student' ? newClass : '',
+      status: 'active'
+    };
+    setUsers([...users, newUser]);
+    setNewFn(''); setNewLn(''); setNewRole('student'); setShowAddUser(false);
+    modals.showAlert("Compte Créé !", `Identifiant : ${creds.username}\nMot de passe : ${creds.password}\n\nNotez bien ces informations pour les transmettre à l'utilisateur.`);
+  };
+
+  const downloadUserTemplate = () => {
+    const csv = "Prenom,Nom,Role (student/teacher/ddfpt/admin),Classe\nJean,Dupont,student,Terminale ITEC";
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "modele_import_utilisateurs.csv"; link.click();
+  };
+
+  const handleCsvImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const lines = ev.target.result.split('\n');
+      const newUsers = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const [fn, ln, role, cls] = lines[i].split(',').map(s => s.trim());
+        if (fn && ln) {
+          const creds = generateCredentials(fn, ln);
+          newUsers.push({
+            id: 'u' + Date.now() + i,
+            name: `${fn} ${ln}`,
+            username: creds.username,
+            password: creds.password,
+            role: role || 'student',
+            className: cls || '',
+            status: 'active'
+          });
+        }
+      }
+      setUsers([...users, ...newUsers]);
+      setShowCsvImport(false);
+      modals.showAlert("Import Réussi", `${newUsers.length} utilisateurs importés avec succès. Mots de passe auto-générés.`);
+    };
+    reader.readAsText(file);
+    e.target.value = null;
+  };
+
+  const triggerPasswordReset = (userToReset) => {
+    modals.showPrompt(
+      "Modifier le mot de passe", 
+      `Entrez un nouveau mot de passe pour ${userToReset.name} :`, 
+      (val) => {
+        if (!val || val.trim() === '') return; 
+        setUsers(users.map(u => u.id === userToReset.id ? { ...u, password: val } : u));
+        modals.showAlert("Mot de passe modifié", `Nouveau mot de passe de ${userToReset.name} :\n\n${val}`);
+      }
+    );
+  };
+
+  const triggerAutoPasswordReset = (userToReset) => {
+    modals.showConfirm(
+      "Génération Automatique",
+      `Voulez-vous générer un nouveau mot de passe aléatoire pour ${userToReset.name} ?`,
+      () => {
+        const newPwd = Math.random().toString(36).slice(-4);
+        setUsers(users.map(u => u.id === userToReset.id ? { ...u, password: newPwd } : u));
+        modals.showAlert("Mot de passe modifié", `Nouveau mot de passe de ${userToReset.name} :\n\n${newPwd}\n\nVeuillez le noter pour le transmettre à l'utilisateur.`);
+      }
+    );
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      {pendingUsers.length > 0 && canManageUsers && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800">
+          <h3 className="font-bold text-yellow-800 dark:text-yellow-400 mb-3 flex items-center gap-2"><AlertCircle size={18}/> En attente de validation ({pendingUsers.length})</h3>
+          <div className="space-y-2">
+            {pendingUsers.map(u => (
+              <div key={u.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-yellow-100 dark:border-yellow-900">
+                <div>
+                  <span className="font-bold text-sm dark:text-white">{u.name}</span>
+                  <span className="text-xs text-gray-500 ml-2">({u.role === 'student' ? `Élève - ${u.className}` : 'Professeur'})</span>
+                  {u.googleEmail && <span className="block text-[10px] text-gray-400 mt-0.5"><Mail size={10} className="inline mr-1"/>{u.googleEmail}</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => approveUser(u.id)} className="bg-green-100 text-green-700 p-1.5 rounded hover:bg-green-200 transition-colors"><CheckCircle size={16}/></button>
+                  <button onClick={() => rejectUser(u.id)} className="bg-red-100 text-red-700 p-1.5 rounded hover:bg-red-200 transition-colors"><XCircle size={16}/></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="p-4 border-b dark:border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50 dark:bg-gray-800/50">
+           <h3 className="font-bold dark:text-white flex items-center gap-2"><Users size={20} className="text-blue-500"/> Utilisateurs Actifs</h3>
+           {canManageUsers && (
+             <div className="flex flex-wrap gap-2">
+               <button onClick={() => { setShowAddUser(!showAddUser); setShowCsvImport(false); }} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-blue-700 active:scale-95 transition-all">
+                 {showAddUser ? <X size={14}/> : <Plus size={14}/>} Ajout Manuel
+               </button>
+               <button onClick={() => { setShowCsvImport(!showCsvImport); setShowAddUser(false); }} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-indigo-700 active:scale-95 transition-all">
+                 {showCsvImport ? <X size={14}/> : <FileSpreadsheet size={14}/>} Import Fichier (CSV)
+               </button>
+             </div>
+           )}
+        </div>
+
+        {/* Modal Ajout Manuel */}
+        {showAddUser && canManageUsers && (
+          <div className="p-5 border-b dark:border-gray-700 bg-blue-50/50 dark:bg-blue-900/10 animate-in slide-in-from-top-2">
+            <h4 className="font-bold text-sm text-blue-800 dark:text-blue-300 mb-4 flex items-center gap-2"><PlusCircle size={16}/> Création manuelle</h4>
+            <form onSubmit={handleManualAdd} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Prénom</label>
+                  <input type="text" required value={newFn} onChange={e=>setNewFn(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:border-blue-500 text-sm" placeholder="Ex: Jean" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Nom</label>
+                  <input type="text" required value={newLn} onChange={e=>setNewLn(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:border-blue-500 text-sm" placeholder="Ex: Dupont" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Rôle</label>
+                  <select value={newRole} onChange={e=>setNewRole(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:border-blue-500 text-sm">
+                    <option value="student">Élève</option>
+                    <option value="teacher">Professeur</option>
+                    <option value="ddfpt">DDFPT / Magasinier</option>
+                    {currentUserRole === 'admin' && <option value="admin">Administrateur</option>}
+                  </select>
+                </div>
+                {newRole === 'student' && (
+                  <div className="animate-in fade-in zoom-in-95">
+                    <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Classe</label>
+                    <select value={newClass} onChange={e=>setNewClass(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:border-blue-500 text-sm">
+                      {classesList.map(c => <option key={`add-${c}`} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end pt-2">
+                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-md active:scale-95 transition-transform hover:bg-blue-700">Générer les accès</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Modal Import CSV */}
+        {showCsvImport && canManageUsers && (
+          <div className="p-5 border-b dark:border-gray-700 bg-indigo-50/50 dark:bg-indigo-900/10 animate-in slide-in-from-top-2">
+            <h4 className="font-bold text-sm text-indigo-800 dark:text-indigo-300 mb-2 flex items-center gap-2"><FileSpreadsheet size={16}/> Importation par liste (CSV)</h4>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Téléchargez le modèle, remplissez-le avec un logiciel comme Excel ou Google Sheets, puis uploadez-le ici pour créer plusieurs comptes simultanément.</p>
+            <div className="flex gap-4">
+              <button onClick={downloadUserTemplate} className="text-xs bg-white dark:bg-gray-800 border dark:border-gray-600 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 dark:text-gray-200">
+                <DownloadCloud size={14}/> Télécharger le modèle
+              </button>
+              <label className="text-xs bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-indigo-700 cursor-pointer flex items-center gap-2">
+                <UploadCloud size={14}/> Uploader la liste remplie
+                <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
+              </label>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
+              <tr>
+                <th className="p-3">Nom</th>
+                <th className="p-3">Identifiant</th>
+                {canManageUsers && <th className="p-3">Mot de passe</th>}
+                <th className="p-3">Rôle</th>
+                <th className="p-3">Classe</th>
+                <th className="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y dark:divide-gray-700">
+              {activeUsers.filter(u => canManageUsers || (currentUserRole === 'teacher' && u.role === 'student')).map(u => {
+                const isTargetAdmin = u.role === 'admin';
+                const canEditTarget = currentUserRole === 'admin' || (currentUserRole === 'ddfpt' && !isTargetAdmin) || (currentUserRole === 'teacher' && u.role === 'student');
+                
+                return (
+                  <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td className="p-3 font-medium dark:text-white">
+                      {u.name}
+                      {u.googleEmail && <span className="block text-[10px] text-gray-400 font-normal"><Mail size={10} className="inline mr-1"/>{u.googleEmail}</span>}
+                    </td>
+                    <td className="p-3 font-mono text-xs text-gray-600 dark:text-gray-400">{u.username}</td>
+                    
+                    {canManageUsers && (
+                      <td className="p-3">
+                        {canEditTarget ? <PasswordReveal password={u.password} /> : <span className="text-gray-400 italic text-xs">Protégé</span>}
+                      </td>
+                    )}
+                    
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase shadow-sm border ${
+                        u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' :
+                        u.role === 'teacher' ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' :
+                        u.role === 'ddfpt' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' :
+                        'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                      }`}>
+                        {u.role === 'teacher' ? 'Prof' : u.role === 'student' ? 'Élève' : u.role}
+                      </span>
+                    </td>
+                    <td className="p-3 dark:text-gray-300 text-xs">{u.className || '-'}</td>
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {canEditTarget && u.id !== '0' && (
+                          <button onClick={() => triggerAutoPasswordReset(u)} className="text-gray-500 hover:text-green-600 bg-gray-100 hover:bg-green-50 dark:bg-gray-800 dark:hover:bg-green-900/30 p-2 rounded-lg transition-all" title="Générer aléatoirement">
+                            <RefreshCw size={16}/>
+                          </button>
+                        )}
+                        {canEditTarget && u.id !== '0' && (
+                          <button onClick={() => triggerPasswordReset(u)} className="text-gray-500 hover:text-blue-600 bg-gray-100 hover:bg-blue-50 dark:bg-gray-800 dark:hover:bg-blue-900/30 p-2 rounded-lg transition-all" title="Modifier manuellement">
+                            <Key size={16}/>
+                          </button>
+                        )}
+                        {canEditTarget && u.id !== '0' && (
+                          <button onClick={() => rejectUser(u.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition-all" title="Supprimer le compte">
+                            <Trash2 size={16}/>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const StockManagementSection = ({ materials, setMaterials, currentUserRole, onAddToCart, modals }) => {
+  const canManageStock = ['admin', 'ddfpt', 'teacher'].includes(currentUserRole);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+
+  // Manual Add Form
+  const [mName, setMName] = useState('');
+  const [mCat, setMCat] = useState(CATEGORIES_MATERIEL[0]);
+  const [mDesc, setMDesc] = useState('');
+  const [mPrice, setMPrice] = useState(0);
+  const [mStock, setMStock] = useState(0);
+  const [mUnit, setMUnit] = useState('Unité');
+  const [mCarbon, setMCarbon] = useState(0);
+  
+  const handleManualAdd = (e) => {
+    e.preventDefault();
+    if (!mName.trim()) return;
+    const newMat = {
+      id: 'm' + Date.now(),
+      name: mName,
+      category: mCat,
+      description: mDesc,
+      price: parseFloat(mPrice) || 0,
+      stock: parseInt(mStock) || 0,
+      unit: mUnit,
+      carbonFootprint: parseFloat(mCarbon) || 0,
+      type: mCat.includes('Système') ? 'emprunt' : 'consommable'
+    };
+    setMaterials([...materials, newMat]);
+    setMName(''); setMDesc(''); setMPrice(0); setMStock(0); setMCarbon(0); setShowAddMenu(false);
+    modals.showAlert("Succès", "Nouveau matériel ajouté à l'inventaire !");
+  };
+
+  const downloadMaterialTemplate = () => {
+    const csv = "Nom,Categorie,Description,Prix(ex: 1.50),Stock initial,Unite,Empreinte Carbone (kg CO2e)\nRésistance 10k,Composants Électroniques,Lot de résistances 1/4W,0.05,500,Lot,0.01";
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "modele_import_materiel.csv"; link.click();
+  };
+
+  const handleCsvImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const lines = ev.target.result.split('\n');
+      const newMats = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const parts = lines[i].split(',').map(s => s.trim());
+        const [name, cat, desc, price, stock, unit, carbon] = parts;
+        if (name) {
+          newMats.push({
+            id: 'm' + Date.now() + i,
+            name,
+            category: cat || CATEGORIES_MATERIEL[0],
+            description: desc || '',
+            price: parseFloat(price) || 0,
+            stock: parseInt(stock) || 0,
+            unit: unit || 'Unité',
+            carbonFootprint: parseFloat(carbon) || 0,
+            type: (cat || '').includes('Système') ? 'emprunt' : 'consommable'
+          });
+        }
+      }
+      setMaterials([...materials, ...newMats]);
+      setShowAddMenu(false);
+      modals.showAlert("Import Réussi", `${newMats.length} matériels ajoutés à la base.`);
+    };
+    reader.readAsText(file);
+    e.target.value = null;
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border dark:border-gray-700 flex justify-between items-center">
+        <h3 className="font-bold dark:text-white flex items-center gap-2"><Database size={20}/> Catalogue & Stock</h3>
+        {canManageStock && !onAddToCart && (
+          <button onClick={() => setShowAddMenu(!showAddMenu)} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-blue-700 active:scale-95 transition-all">
+            {showAddMenu ? <X size={14}/> : <Plus size={14}/>} {showAddMenu ? 'Annuler' : 'Ajouter au catalogue'}
+          </button>
+        )}
+      </div>
+
+      {showAddMenu && canManageStock && (
+        <div className="bg-blue-50/50 dark:bg-blue-900/10 p-6 rounded-2xl border border-blue-100 dark:border-blue-900/30 shadow-inner animate-in slide-in-from-top-4">
+          <div className="flex flex-col md:flex-row gap-8">
+             {/* Ajout Manuel */}
+             <div className="flex-1 border-r border-blue-200 dark:border-blue-800/50 pr-0 md:pr-8">
+               <h4 className="font-bold text-sm text-blue-800 dark:text-blue-300 mb-4 flex items-center gap-2"><PlusCircle size={16}/> Saisie Manuelle</h4>
+               <form onSubmit={handleManualAdd} className="space-y-3">
+                 <input type="text" placeholder="Nom du composant / équipement" required value={mName} onChange={e=>setMName(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none" />
+                 <select value={mCat} onChange={e=>setMCat(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none">
+                    {CATEGORIES_MATERIEL.map(c => <option key={c} value={c}>{c}</option>)}
+                 </select>
+                 <textarea placeholder="Brève description..." rows="2" value={mDesc} onChange={e=>setMDesc(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none" />
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                   <input type="number" step="0.01" placeholder="Prix Unitaire" value={mPrice} onChange={e=>setMPrice(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none" />
+                   <input type="number" placeholder="Stock" value={mStock} onChange={e=>setMStock(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none" />
+                   <input type="text" placeholder="Unité (ex: Pièce)" value={mUnit} onChange={e=>setMUnit(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none" />
+                   <input type="number" step="0.01" placeholder="Bilan CO2e" value={mCarbon} onChange={e=>setMCarbon(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none" title="Empreinte Carbone en kg CO2e" />
+                 </div>
+                 <button type="submit" className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-bold active:scale-95 transition-transform hover:bg-blue-700">Ajouter à la base</button>
+               </form>
+             </div>
+
+             {/* Import Fichier */}
+             <div className="flex-1">
+               <h4 className="font-bold text-sm text-blue-800 dark:text-blue-300 mb-4 flex items-center gap-2"><FileSpreadsheet size={16}/> Import par Liste (CSV)</h4>
+               <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">Téléchargez le modèle CSV pour y coller votre propre base de données matérielle. Enregistrez et uploadez le fichier final ici.</p>
+               <div className="flex flex-col gap-3">
+                 <button type="button" onClick={downloadMaterialTemplate} className="w-full text-xs bg-white dark:bg-gray-800 border dark:border-gray-600 p-3 rounded-lg font-bold shadow-sm hover:bg-gray-50 flex items-center justify-center gap-2 dark:text-gray-200">
+                   <DownloadCloud size={14}/> Télécharger le modèle (CSV)
+                 </button>
+                 <label className="w-full text-xs bg-indigo-600 text-white p-3 rounded-lg font-bold shadow-sm hover:bg-indigo-700 cursor-pointer flex items-center justify-center gap-2">
+                   <UploadCloud size={14}/> Uploader la liste finale
+                   <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
+                 </label>
+               </div>
+             </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {materials.map(m => (
+          <MaterialCard 
+            key={m.id} 
+            material={m} 
+            hidePrice={!!onAddToCart} 
+            onAdd={onAddToCart ? () => onAddToCart(m) : undefined} 
+            allowOutOfStockOrder={!!onAddToCart} 
+            onDelete={canManageStock && !onAddToCart ? (id, name) => modals.showConfirm("Supprimer", `Supprimer "${name}" ?`, () => setMaterials(materials.filter(x => x.id !== id))) : undefined}
+          />
+        ))}
+        {materials.length === 0 && <div className="col-span-full text-center p-8 text-gray-500 italic dark:text-gray-400">Aucun matériel dans l'inventaire.</div>}
+      </div>
+    </div>
+  );
+};
+
+const SystemResourcesSection = ({ currentUser, resources = [], setResources, classesList, modals }) => {
+  const canManage = ['admin', 'teacher', 'ddfpt'].includes(currentUser.role);
+  const [showAddSystem, setShowAddSystem] = useState(false);
+  const [showAddDocFor, setShowAddDocFor] = useState(null);
+
+  // Filters
+  const [filterType, setFilterType] = useState('all');
+  const [filterClass, setFilterClass] = useState('all');
+
+  // States for new System
+  const [sysName, setSysName] = useState('');
+  const [sysDesc, setSysDesc] = useState('');
+  const [sysClass, setSysClass] = useState('Toutes');
+
+  // States for new Doc
+  const [docTitle, setDocTitle] = useState('');
+  const [docType, setDocType] = useState(TYPES_DOCUMENTS[0]);
+  const [docUrl, setDocUrl] = useState('');
+  const [corrUrl, setCorrUrl] = useState('');
+
+  const displayedResources = useMemo(() => {
+    return resources.filter(sys => {
+      const matchRole = canManage || sys.className === 'Toutes' || sys.className === currentUser.className;
+      const matchFilterClass = filterClass === 'all' || sys.className === filterClass || sys.className === 'Toutes';
+      return matchRole && matchFilterClass;
+    });
+  }, [resources, currentUser.className, currentUser.role, canManage, filterClass]);
+
+  const handleAddSystem = (e) => {
+    e.preventDefault();
+    const newSys = { id: 'sys' + Date.now(), name: sysName, description: sysDesc, className: sysClass, docs: [] };
+    setResources([newSys, ...resources]);
+    setSysName(''); setSysDesc(''); setSysClass('Toutes'); setShowAddSystem(false);
+    modals.showAlert("Succès", "Nouveau système ajouté !");
+  };
+
+  const handleAddDoc = (e, systemId) => {
+    e.preventDefault();
+    if (!docUrl) return modals.showAlert("Erreur", "Veuillez joindre un fichier ou un lien pour le sujet.");
+    const newDoc = { id: 'doc' + Date.now(), title: docTitle, type: docType, url: docUrl, corrUrl };
+    setResources(resources.map(sys => sys.id === systemId ? { ...sys, docs: [...(sys.docs || []), newDoc] } : sys));
+    setDocTitle(''); setDocType(TYPES_DOCUMENTS[0]); setDocUrl(''); setCorrUrl(''); setShowAddDocFor(null);
+  };
+
+  const handleDeleteSystem = (systemId, systemName) => {
+    modals.showConfirm("Suppression", `Voulez-vous vraiment supprimer le système "${systemName}" et tous ses documents ?`, () => {
+      setResources(resources.filter(s => s.id !== systemId));
+    });
+  };
+
+  const handleDeleteDoc = (systemId, docId, docTitle) => {
+    modals.showConfirm("Suppression", `Supprimer le document "${docTitle}" ?`, () => {
+      setResources(resources.map(sys => sys.id === systemId ? { ...sys, docs: sys.docs.filter(d => d.id !== docId) } : sys));
+    });
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+        <div className="flex items-center gap-3">
+          <Layers size={24} className="text-indigo-500" />
+          <h2 className="text-lg font-black dark:text-white uppercase tracking-tight">Systèmes & Ressources Pédagogiques</h2>
+        </div>
+        
+        <div className="flex gap-2">
+          <select value={filterClass} onChange={e=>setFilterClass(e.target.value)} className="bg-gray-50 dark:bg-gray-900 border dark:border-gray-700 text-xs p-2 rounded-lg outline-none dark:text-white">
+            <option value="all">Filtrer par Classe</option>
+            {classesList.map(c => <option key={`filt-${c}`} value={c}>{c}</option>)}
+          </select>
+          {canManage && (
+            <button onClick={() => setShowAddSystem(!showAddSystem)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 active:scale-95 shadow-sm transition-all">
+              {showAddSystem ? <X size={14}/> : <Plus size={14}/>} {showAddSystem ? 'Annuler' : 'Créer un Système'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showAddSystem && canManage && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/10 p-6 rounded-2xl border border-indigo-100 dark:border-indigo-800 animate-in slide-in-from-top-4">
+          <h3 className="font-bold text-indigo-900 dark:text-indigo-300 mb-4 flex items-center gap-2"><PlusCircle size={18}/> Nouveau Système (Maquette / Banc d'essai)</h3>
+          <form onSubmit={handleAddSystem} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Nom du système</label>
+                <input type="text" required value={sysName} onChange={e=>setSysName(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:border-indigo-500 text-sm" placeholder="Ex: Portail Automatisé FAAC" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Classe assignée</label>
+                <select value={sysClass} onChange={e=>setSysClass(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:border-indigo-500 text-sm">
+                   <option value="Toutes">Visible par toutes les classes</option>
+                   {classesList.map(c => <option key={`sysClass-${c}`} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Description générale</label>
+              <textarea value={sysDesc} onChange={e=>setSysDesc(e.target.value)} rows="2" className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none text-sm focus:border-indigo-500" placeholder="Brève description de la maquette..." />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-md active:scale-95 transition-transform hover:bg-indigo-700">Créer le système</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {displayedResources.length === 0 ? (
+        <div className="p-12 text-center text-gray-500 dark:text-gray-400 border-2 border-dashed dark:border-gray-700 rounded-2xl">
+          <BookOpenCheck size={48} className="mx-auto mb-4 opacity-20"/>
+          <p className="text-lg font-bold">Aucun système disponible</p>
+          {canManage && <p className="text-sm mt-1">Ajoutez un système pour commencer à y associer des TP/TD.</p>}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6">
+          {displayedResources.map(sys => (
+            <div key={sys.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
+               <div className="p-5 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-start">
+                 <div>
+                   <div className="flex items-center gap-3">
+                     <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2"><Monitor size={20} className="text-blue-500"/> {sys.name}</h3>
+                     <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{sys.className}</span>
+                   </div>
+                   {sys.description && <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{sys.description}</p>}
+                 </div>
+                 {canManage && (
+                   <button onClick={() => handleDeleteSystem(sys.id, sys.name)} className="text-gray-400 hover:text-red-500 p-2 bg-white dark:bg-gray-700 rounded-lg shadow-sm transition-colors" title="Supprimer ce système"><Trash2 size={16}/></button>
+                 )}
+               </div>
+               
+               <div className="p-5">
+                 <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-xs font-bold uppercase opacity-50 dark:text-white">Ressources associées ({(sys.docs || []).length})</h4>
+                    {canManage && (
+                      <button onClick={() => setShowAddDocFor(showAddDocFor === sys.id ? null : sys.id)} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                        {showAddDocFor === sys.id ? <X size={12}/> : <Plus size={12}/>} {showAddDocFor === sys.id ? 'Annuler' : 'Ajouter une ressource'}
+                      </button>
+                    )}
+                 </div>
+
+                 {showAddDocFor === sys.id && canManage && (
+                   <form onSubmit={(e) => handleAddDoc(e, sys.id)} className="bg-blue-50 dark:bg-blue-900/10 p-6 rounded-xl border border-blue-100 dark:border-blue-800 mb-6 animate-in zoom-in-95 space-y-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div>
+                         <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Titre du document</label>
+                         <input type="text" required value={docTitle} onChange={e=>setDocTitle(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none text-sm" placeholder="Ex: TP1 - Étude cinématique" />
+                       </div>
+                       <div>
+                         <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Type de document</label>
+                         <select value={docType} onChange={e=>setDocType(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none text-sm">
+                           {TYPES_DOCUMENTS.map(t => <option key={`type-${t}`} value={t}>{t}</option>)}
+                         </select>
+                       </div>
+                     </div>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <FileAttachmentInput label="Document Sujet (Élèves)" value={docUrl} onChange={setDocUrl} isProtected={false} modals={modals} />
+                       <FileAttachmentInput label="Document Corrigé (Profs uniquement)" value={corrUrl} onChange={setCorrUrl} isProtected={true} modals={modals} />
+                     </div>
+
+                     <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md active:scale-95">Ajouter la ressource au système</button>
+                   </form>
+                 )}
+
+                 {!(sys.docs && sys.docs.length > 0) ? (
+                   <p className="text-xs italic opacity-40 dark:text-white">Aucun document pour ce système.</p>
+                 ) : (
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                     {sys.docs.filter(doc => canManage || docType === 'all' || true).map(doc => (
+                       <div key={doc.id} className="border dark:border-gray-700 rounded-xl p-3 flex flex-col bg-gray-50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 transition-colors group relative">
+                         {canManage && <button onClick={() => handleDeleteDoc(sys.id, doc.id, doc.title)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>}
+                         <span className="text-[9px] font-black uppercase text-indigo-500 mb-1 tracking-wider">{doc.type}</span>
+                         <h5 className="font-bold text-sm dark:text-white mb-3 pr-4 leading-tight">{doc.title}</h5>
+                         
+                         <div className="mt-auto flex flex-col gap-2">
+                           <a href={doc.url} target="_blank" rel="noopener noreferrer" className="flex justify-center items-center gap-2 bg-white dark:bg-gray-700 border dark:border-gray-600 py-1.5 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors shadow-sm">
+                              {doc.type.includes('Dossier') ? <FolderOpen size={14}/> : <FileDown size={14}/>} Accéder
+                           </a>
+                           
+                           {canManage && doc.corrUrl && (
+                             <a href={doc.corrUrl} target="_blank" rel="noopener noreferrer" className="flex justify-center items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 py-1.5 rounded-lg text-[10px] font-bold text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm"><FileLock2 size={12}/> Corrigé (Protégé)</a>
+                           )}
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StudentWorkspaceSection = ({ currentUser, updateState, modals }) => {
+  const [driveLink, setDriveLink] = useState(currentUser.workspaceUrl || '');
+  const [isUploading, setIsUploading] = useState(false);
+  const inputRef = useRef(null);
+
+  const files = currentUser.uploadedFiles || [];
+
+  const saveWorkspace = (e) => {
+    e.preventDefault();
+    if(!driveLink.trim().includes('http')) return modals.showAlert("Erreur", "Veuillez entrer une URL valide (https://...)");
+    updateState('users', window.__globalState.users.map(u => u.id === currentUser.id ? { ...u, workspaceUrl: driveLink } : u));
+    modals.showAlert("Succès", "Le lien de votre Drive a bien été enregistré. Vos professeurs y ont désormais accès !");
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!storage) return modals.showAlert("Erreur", "Le stockage cloud n'est pas configuré.");
+    
+    setIsUploading(true);
+    try {
+      const storageRef = ref(storage, `student_works/${currentUser.id}_${Date.now()}_${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      uploadTask.on('state_changed', null, 
+        (err) => { setIsUploading(false); modals.showAlert("Erreur", "Échec de l'upload."); }, 
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          const newFile = { id: Date.now().toString(), name: file.name, url: downloadURL, date: new Date().toLocaleDateString('fr-FR') };
+          updateState('users', window.__globalState.users.map(u => u.id === currentUser.id ? { ...u, uploadedFiles: [...(u.uploadedFiles || []), newFile] } : u));
+          setIsUploading(false);
+          modals.showAlert("Succès", "Fichier déposé avec succès.");
+        }
+      );
+    } catch (err) {
+      setIsUploading(false);
+      modals.showAlert("Erreur", "Erreur lors de l'upload.");
+    }
+  };
+
+  const deleteFile = (fileId) => {
+    modals.showConfirm("Suppression", "Supprimer ce fichier de votre espace ?", () => {
+       updateState('users', window.__globalState.users.map(u => u.id === currentUser.id ? { ...u, uploadedFiles: u.uploadedFiles.filter(f => f.id !== fileId) } : u));
+    });
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-xl border dark:border-gray-700 max-w-3xl mx-auto mt-6">
+        <div className="text-center mb-8">
+          <HardDrive size={64} className="mx-auto text-blue-500 mb-6" />
+          <h2 className="text-2xl font-black dark:text-white mb-2">Mon Espace de Travail</h2>
+          <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed max-w-xl mx-auto">
+            Déposez ici vos fichiers de travail (SolidWorks, codes, rapports) pour les sauvegarder. Vous pouvez également lier un dossier <strong>Google Drive</strong> global pour vos projets d'équipe.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Fichiers Locaux Uploadés */}
+          <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl border dark:border-gray-700">
+            <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><UploadCloud size={18}/> Dépôt de Fichiers</h3>
+            
+            <input type="file" ref={inputRef} className="hidden" onChange={handleFileUpload} />
+            <button 
+              onClick={() => inputRef.current?.click()} 
+              disabled={isUploading}
+              className="w-full py-4 border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 rounded-xl font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"
+            >
+              {isUploading ? <RefreshCw className="animate-spin"/> : <PlusCircle/>} {isUploading ? 'Envoi en cours...' : 'Déposer un fichier'}
+            </button>
+
+            <div className="mt-4 space-y-2">
+              {files.length === 0 && <p className="text-xs italic text-gray-500 text-center py-2">Aucun fichier déposé.</p>}
+              {files.map(f => (
+                <div key={f.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-2 rounded-lg border dark:border-gray-600 shadow-sm">
+                  <div className="flex items-center gap-2 overflow-hidden pr-2">
+                    <FileDown size={14} className="text-gray-400 flex-shrink-0"/>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600 dark:text-blue-400 truncate hover:underline">{f.name}</a>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-[10px] text-gray-400">{f.date}</span>
+                    <button onClick={() => deleteFile(f.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Lien Google Drive global */}
+          <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-2xl border dark:border-gray-700">
+            <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><Cloud size={18}/> Dossier Drive Global</h3>
+            <form onSubmit={saveWorkspace} className="flex flex-col gap-4">
+              <div className="flex flex-col text-left">
+                 <label className="text-[10px] font-bold uppercase opacity-60 mb-2 dark:text-gray-300">Lien de partage public</label>
+                 <input type="url" value={driveLink} onChange={e=>setDriveLink(e.target.value)} placeholder="https://drive.google.com/drive/folders/..." required className="w-full p-3 border dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white outline-none focus:border-blue-500 font-medium transition-colors text-sm" />
+              </div>
+              <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm active:scale-95 shadow-sm transition-transform hover:bg-blue-700">Enregistrer l'espace Drive</button>
+            </form>
+
+            {currentUser.workspaceUrl && (
+              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-center">
+                 <p className="text-xs font-bold text-green-700 dark:text-green-400 flex items-center justify-center gap-1"><CheckCircle2 size={14}/> Espace Drive enregistré.</p>
+                 <a href={currentUser.workspaceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline mt-1 inline-block">Accéder à mon Drive actuel</a>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const StockHistorySection = ({ history }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 overflow-hidden">
+    <div className="p-4 border-b dark:border-gray-700">
+       <h3 className="font-bold dark:text-white flex items-center gap-2"><History size={20}/> Historique des Mouvements</h3>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
+          <tr><th className="p-3">Date</th><th className="p-3">Matériel</th><th className="p-3">Action</th><th className="p-3">Variation</th><th className="p-3">Par</th></tr>
+        </thead>
+        <tbody className="divide-y dark:divide-gray-700">
+          {history.length === 0 && <tr><td colSpan="5" className="p-4 text-center italic text-gray-500">Aucun mouvement.</td></tr>}
+          {history.map(h => (
+            <tr key={h.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="p-3 text-gray-500 text-xs">{h.date}</td>
+              <td className="p-3 font-medium dark:text-white">{h.matName}</td>
+              <td className="p-3 dark:text-gray-300">{h.reason}</td>
+              <td className="p-3 font-bold">
+                <span className={h.change > 0 ? 'text-green-500' : 'text-red-500'}>{h.change > 0 ? '+'+h.change : h.change}</span>
+              </td>
+              <td className="p-3 dark:text-gray-400">{h.user}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+const GroupsSection = ({ currentUser, users, groups = [], setGroups, isTeacher, modals, pedagogicalProjects = [] }) => {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState([]);
+
+  const STATUSES = ['À faire', 'Conception', 'Fabrication', 'Tests', 'Terminé'];
+
+  const myProjects = isTeacher 
+    ? pedagogicalProjects.filter(p => p.teacherId === currentUser.id)
+    : pedagogicalProjects;
+
+  const selectedProject = myProjects.find(p => p.id === selectedProjectId);
+  const availableStudents = selectedProject 
+    ? users.filter(u => selectedProject.assignedStudents.includes(u.id))
+    : [];
+
+  const handleCreateGroup = (e) => {
+    e.preventDefault();
+    if (!groupName.trim() || !selectedProjectId || selectedMembers.length === 0) {
+      return modals.showAlert("Erreur", "Veuillez remplir tous les champs et sélectionner au moins un élève.");
+    }
+    const newGroup = {
+      id: 'grp_' + Date.now(),
+      name: groupName,
+      projectId: selectedProjectId,
+      members: selectedMembers,
+      status: STATUSES[0],
+      progress: 0
+    };
+    setGroups([...groups, newGroup]);
+    setGroupName(''); setSelectedProjectId(''); setSelectedMembers([]); setShowCreateForm(false);
+    modals.showAlert("Succès", "Groupe de projet créé avec succès !");
+  };
+
+  const handleDeleteGroup = (id) => {
+    modals.showConfirm("Suppression", "Voulez-vous vraiment supprimer ce groupe ?", () => {
+      setGroups(groups.filter(g => g.id !== id));
+    });
+  };
+
+  const updateGroup = (id, field, value) => {
+    setGroups(groups.map(g => g.id === id ? { ...g, [field]: value } : g));
+  };
+
+  const toggleMember = (id) => {
+    setSelectedMembers(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]);
+  };
+
+  const displayGroups = isTeacher
+    ? groups.filter(g => myProjects.some(p => p.id === g.projectId))
+    : groups.filter(g => g.members && g.members.includes(currentUser.id));
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border dark:border-gray-700 flex justify-between items-center">
+        <h3 className="font-bold text-lg dark:text-white flex items-center gap-2"><Users size={20} className="text-indigo-500"/> Suivi des Groupes</h3>
+        {isTeacher && (
+          <button onClick={() => setShowCreateForm(!showCreateForm)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all shadow-sm">
+            {showCreateForm ? <X size={14}/> : <Plus size={14}/>} {showCreateForm ? 'Annuler' : 'Créer un groupe'}
+          </button>
+        )}
+      </div>
+
+      {showCreateForm && isTeacher && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/10 p-6 rounded-2xl border border-indigo-100 dark:border-indigo-800 shadow-inner animate-in slide-in-from-top-4">
+          <h4 className="font-bold text-sm text-indigo-900 dark:text-indigo-300 mb-4 flex items-center gap-2"><PlusCircle size={16}/> Nouveau Groupe</h4>
+          <form onSubmit={handleCreateGroup} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Nom du groupe</label>
+                <input type="text" required value={groupName} onChange={e=>setGroupName(e.target.value)} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" placeholder="Ex: Écurie Alpha" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase opacity-60 mb-1 block dark:text-gray-300">Projet Pédagogique Associé</label>
+                <select required value={selectedProjectId} onChange={e=>{setSelectedProjectId(e.target.value); setSelectedMembers([]);}} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm">
+                  <option value="">Sélectionner un projet...</option>
+                  {myProjects.map(p => <option key={p.id} value={p.id}>{p.title} ({p.className})</option>)}
+                </select>
+              </div>
+            </div>
+
+            {selectedProjectId && (
+              <div className="border dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 shadow-sm">
+                <label className="text-[10px] font-bold uppercase opacity-60 mb-3 block dark:text-gray-300">Sélection des élèves du groupe</label>
+                <div className="max-h-40 overflow-y-auto pr-2 grid grid-cols-1 sm:grid-cols-2 gap-2 custom-scrollbar">
+                  {availableStudents.length === 0 ? <p className="text-xs italic text-gray-500">Aucun élève assigné à ce projet.</p> : availableStudents.map(s => (
+                    <label key={s.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors border ${selectedMembers.includes(s.id) ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800' : 'hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600'}`}>
+                      <input type="checkbox" checked={selectedMembers.includes(s.id)} onChange={() => toggleMember(s.id)} className="rounded text-indigo-600 w-4 h-4" />
+                      <span className="text-sm dark:text-gray-200">{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button type="submit" className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 active:scale-95 transition-all">Enregistrer le groupe</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {displayGroups.length === 0 ? (
+        <p className="text-gray-500 italic text-center p-12 border-2 border-dashed dark:border-gray-700 rounded-2xl">Aucun groupe de projet trouvé.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {displayGroups.map(g => {
+            const proj = pedagogicalProjects.find(p => p.id === g.projectId);
+            return (
+              <div key={g.id} className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-5 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-start">
+                  <div>
+                    <h4 className="font-black text-lg text-gray-800 dark:text-white flex items-center gap-2">
+                      {g.name}
+                    </h4>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold mt-1 uppercase tracking-wider">{proj?.title || 'Projet inconnu'}</p>
+                  </div>
+                  {isTeacher && (
+                    <button onClick={() => handleDeleteGroup(g.id)} className="text-gray-400 hover:text-red-500 p-2 bg-white dark:bg-gray-700 rounded-lg shadow-sm transition-colors">
+                      <Trash2 size={16}/>
+                    </button>
+                  )}
+                </div>
+                
+                <div className="p-5 flex-1 flex flex-col gap-4">
+                  <div>
+                    <h5 className="text-[10px] font-bold uppercase opacity-50 mb-2 dark:text-gray-300">Membres du groupe</h5>
+                    <div className="flex flex-wrap gap-2">
+                      {g.members.map(mId => {
+                        const member = users.find(u => u.id === mId);
+                        return <span key={mId} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs px-2.5 py-1 rounded-lg border dark:border-gray-600 shadow-sm font-medium">{member ? member.name : 'Inconnu'}</span>;
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mt-auto pt-4 border-t dark:border-gray-700 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold uppercase opacity-50 dark:text-gray-300">Statut de la démarche</label>
+                      <select 
+                        value={g.status} 
+                        onChange={(e) => updateGroup(g.id, 'status', e.target.value)}
+                        className={`text-xs font-bold p-1.5 rounded-lg border outline-none shadow-sm cursor-pointer ${
+                          g.status === 'Terminé' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' :
+                          g.status === 'Conception' || g.status === 'Fabrication' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' :
+                          'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800'
+                        }`}
+                      >
+                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[10px] font-bold uppercase opacity-50 dark:text-gray-300 mb-1">
+                        <span>Avancement Global</span>
+                        <span>{g.progress}%</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="range" 
+                          min="0" max="100" step="5" 
+                          value={g.progress} 
+                          onChange={(e) => updateGroup(g.id, 'progress', parseInt(e.target.value))}
+                          className="flex-1 accent-indigo-600 cursor-pointer"
+                        />
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2 overflow-hidden shadow-inner">
+                        <div className={`h-2 rounded-full transition-all duration-500 ${g.progress === 100 ? 'bg-green-500' : 'bg-indigo-600'}`} style={{width: `${g.progress}%`}}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==========================================
+// NOUVEAU MODULE: PROJETS PÉDAGOGIQUES
+// ==========================================
+
+const TeacherProjectsSection = ({ pedagogicalProjects, setPedagogicalProjects, users, classesList, currentUser, modals }) => {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [selectedClass, setSelectedClass] = useState(classesList[0] || '');
+  const [description, setDescription] = useState('');
+  const [problematic, setProblematic] = useState('');
+  const [specifications, setSpecifications] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  
+  // Array of user IDs assigned to this project
+  const [assignedStudents, setAssignedStudents] = useState([]);
+
+  // Filter students based on selected class
+  const classStudents = users.filter(u => u.role === 'student' && u.className === selectedClass && u.status === 'active');
+  const myProjects = pedagogicalProjects.filter(p => p.teacherId === currentUser.id);
+
+  const handleCreateProject = (e) => {
+    e.preventDefault();
+    if (!title.trim()) return modals.showAlert("Erreur", "Le titre du projet est requis.");
+    if (assignedStudents.length === 0) return modals.showAlert("Attention", "Veuillez sélectionner au moins un élève pour ce projet.");
+
+    const newProject = {
+      id: 'pedaproj_' + Date.now(),
+      title,
+      className: selectedClass,
+      assignedStudents,
+      description,
+      problematic,
+      specifications,
+      startDate,
+      dueDate,
+      teacherId: currentUser.id,
+      createdAt: new Date().toLocaleDateString('fr-FR')
+    };
+
+    setPedagogicalProjects([...pedagogicalProjects, newProject]);
+    
+    // Reset form
+    setTitle(''); setDescription(''); setProblematic(''); setSpecifications('');
+    setStartDate(''); setDueDate(''); setAssignedStudents([]);
+    setShowCreateForm(false);
+    modals.showAlert("Projet Créé", "Le projet a été créé et assigné aux élèves sélectionnés.");
+  };
+
+  const handleDeleteProject = (id) => {
+    modals.showConfirm("Suppression", "Voulez-vous vraiment supprimer ce projet ?", () => {
+      setPedagogicalProjects(pedagogicalProjects.filter(p => p.id !== id));
+    });
+  };
+
+  const toggleStudent = (id) => {
+    setAssignedStudents(prev => prev.includes(id) ? prev.filter(sId => sId !== id) : [...prev, id]);
+  };
+
+  const toggleAllStudents = () => {
+    if (assignedStudents.length === classStudents.length) {
+      setAssignedStudents([]);
+    } else {
+      setAssignedStudents(classStudents.map(s => s.id));
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border dark:border-gray-700 flex justify-between items-center">
+        <h3 className="font-bold dark:text-white flex items-center gap-2"><Briefcase size={20} className="text-indigo-500"/> Suivi des Projets Pédagogiques</h3>
+        <button onClick={() => setShowCreateForm(!showCreateForm)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all shadow-sm">
+          {showCreateForm ? <X size={14}/> : <Plus size={14}/>} {showCreateForm ? 'Annuler' : 'Créer un Projet'}
+        </button>
+      </div>
+
+      {showCreateForm && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/10 p-6 rounded-2xl border border-indigo-100 dark:border-indigo-800 shadow-inner animate-in slide-in-from-top-4">
+          <h4 className="font-bold text-lg text-indigo-900 dark:text-indigo-300 mb-6 flex items-center gap-2"><Target size={20}/> Nouveau Projet</h4>
+          <form onSubmit={handleCreateProject} className="space-y-6">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Informations de base */}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase opacity-70 mb-1 block dark:text-gray-300">Titre du Projet *</label>
+                  <input type="text" required value={title} onChange={e=>setTitle(e.target.value)} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" placeholder="Ex: Course en Cours - Écurie Alpha" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase opacity-70 mb-1 block dark:text-gray-300">Date de Début</label>
+                    <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none text-sm shadow-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase opacity-70 mb-1 block dark:text-gray-300">Date de Rendu</label>
+                    <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none text-sm shadow-sm" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase opacity-70 mb-1 block dark:text-gray-300">Classe Concernée</label>
+                  <select value={selectedClass} onChange={e=>{setSelectedClass(e.target.value); setAssignedStudents([]);}} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm">
+                    {classesList.map(c => <option key={`p-cls-${c}`} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 shadow-sm">
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="text-xs font-bold uppercase opacity-70 dark:text-gray-300">Élèves Assignés ({assignedStudents.length}) *</label>
+                    <button type="button" onClick={toggleAllStudents} className="text-[10px] text-indigo-600 hover:underline font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded">Tout cocher</button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto pr-2 space-y-1 custom-scrollbar">
+                    {classStudents.length === 0 ? <p className="text-xs italic text-gray-500">Aucun élève dans cette classe.</p> : classStudents.map(s => (
+                      <label key={s.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-600">
+                        <input type="checkbox" checked={assignedStudents.includes(s.id)} onChange={() => toggleStudent(s.id)} className="rounded text-indigo-600 w-4 h-4" />
+                        <span className="text-sm dark:text-gray-200">{s.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Détails Pédagogiques */}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase opacity-70 mb-1 block dark:text-gray-300">Description Générale</label>
+                  <textarea rows="3" value={description} onChange={e=>setDescription(e.target.value)} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" placeholder="Contexte et objectifs du projet..." />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase opacity-70 mb-1 block dark:text-gray-300">Problématique</label>
+                  <textarea rows="3" value={problematic} onChange={e=>setProblematic(e.target.value)} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" placeholder="Quelle est la question technique à résoudre ?" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase opacity-70 mb-1 block dark:text-gray-300">Cahier des Charges (Simplifié)</label>
+                  <textarea rows="3" value={specifications} onChange={e=>setSpecifications(e.target.value)} className="w-full p-2.5 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" placeholder="Contraintes principales, performances attendues..." />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-indigo-200 dark:border-indigo-800/50">
+              <button type="submit" className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2">
+                <Send size={16}/> Lancer le Projet
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {myProjects.length === 0 ? (
+        <div className="text-center p-12 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
+           <Briefcase size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+           <p className="text-gray-500 dark:text-gray-400 font-medium">Vous n'avez créé aucun projet pour le moment.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {myProjects.map(proj => (
+            <div key={proj.id} className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-5 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-start">
+                <div>
+                  <h4 className="font-black text-lg text-gray-800 dark:text-white mb-1 leading-tight">{proj.title}</h4>
+                  <div className="flex items-center gap-2 text-xs font-bold">
+                    <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-2 py-0.5 rounded uppercase">{proj.className}</span>
+                    <span className="text-gray-500 flex items-center gap-1"><Users size={12}/> {proj.assignedStudents.length} Élève(s)</span>
+                  </div>
+                </div>
+                <button onClick={() => handleDeleteProject(proj.id)} className="text-gray-400 hover:text-red-500 p-2 bg-white dark:bg-gray-700 rounded-lg shadow-sm transition-colors">
+                  <Trash2 size={16}/>
+                </button>
+              </div>
+              
+              <div className="p-5 flex-1 space-y-4 text-sm">
+                {proj.problematic && (
+                  <div>
+                    <h5 className="text-[10px] font-bold uppercase opacity-50 mb-1">Problématique</h5>
+                    <p className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border dark:border-gray-700">{proj.problematic}</p>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {proj.startDate && (
+                    <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                      <span className="text-[10px] font-bold uppercase text-blue-600 block mb-0.5 flex items-center gap-1"><Calendar size={10}/> Début</span>
+                      <span className="font-semibold dark:text-white">{new Date(proj.startDate).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                  )}
+                  {proj.dueDate && (
+                    <div className="bg-red-50 dark:bg-red-900/10 p-3 rounded-lg border border-red-100 dark:border-red-900/30">
+                      <span className="text-[10px] font-bold uppercase text-red-600 block mb-0.5 flex items-center gap-1"><Calendar size={10}/> Rendu</span>
+                      <span className="font-semibold dark:text-white">{new Date(proj.dueDate).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StudentProjectsSection = ({ pedagogicalProjects, currentUser }) => {
+  const myAssignedProjects = pedagogicalProjects.filter(p => p.assignedStudents && p.assignedStudents.includes(currentUser.id));
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm flex items-center gap-4">
+        <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
+          <Briefcase size={28} />
+        </div>
+        <div>
+          <h2 className="text-xl font-black dark:text-white">Mes Projets Pédagogiques</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Retrouvez ici les projets et défis assignés par vos professeurs.</p>
+        </div>
+      </div>
+
+      {myAssignedProjects.length === 0 ? (
+        <div className="text-center p-12 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
+           <Target size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+           <p className="text-gray-500 dark:text-gray-400 font-medium">Vous n'avez aucun projet en cours.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {myAssignedProjects.map(proj => (
+            <div key={proj.id} className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-lg overflow-hidden flex flex-col transform hover:-translate-y-1 transition-all duration-300">
+              <div className="h-2 w-full bg-gradient-to-r from-indigo-500 to-blue-500"></div>
+              <div className="p-6 flex-1 flex flex-col">
+                <h3 className="text-xl font-black text-gray-800 dark:text-white mb-4">{proj.title}</h3>
+                
+                <div className="space-y-4 flex-1">
+                  {proj.description && (
+                    <div>
+                      <h5 className="text-[10px] font-bold uppercase text-gray-400 mb-1">Description</h5>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{proj.description}</p>
+                    </div>
+                  )}
+                  {proj.problematic && (
+                    <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 p-3 rounded-xl">
+                      <h5 className="text-[10px] font-bold uppercase text-red-600 mb-1 flex items-center gap-1"><Target size={12}/> Problématique</h5>
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{proj.problematic}</p>
+                    </div>
+                  )}
+                  {proj.specifications && (
+                    <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-3 rounded-xl">
+                      <h5 className="text-[10px] font-bold uppercase text-blue-600 mb-1 flex items-center gap-1"><ClipboardList size={12}/> Cahier des charges</h5>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{proj.specifications}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 pt-4 border-t dark:border-gray-700 flex justify-between items-center text-sm font-bold">
+                  {proj.startDate ? (
+                    <span className="text-gray-500">Du {new Date(proj.startDate).toLocaleDateString('fr-FR')}</span>
+                  ) : <span/>}
+                  {proj.dueDate && (
+                    <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                      <Calendar size={14}/> À rendre : {new Date(proj.dueDate).toLocaleDateString('fr-FR')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// ==========================================
+// 8. TABLEAUX DE BORD
+// ==========================================
+
+function AdminDashboard(props) {
+  const [tab, setTab] = useState('users');
+  const [newClassToAdd, setNewClassToAdd] = useState('');
+
+  const exportData = () => {
+    const data = { users: props.users, materials: props.materials, requests: props.requests, ddfptOrders: props.ddfptOrders, groups: props.groups, classesList: props.classesList, stockHistory: props.stockHistory, resources: props.resources, pedagogicalProjects: props.pedagogicalProjects };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `FabLab_Save_${new Date().toISOString().split('T')[0]}.json`; link.click();
+  };
+
+  const handleAddClass = (e) => {
+    e.preventDefault();
+    if (!newClassToAdd.trim() || props.classesList.includes(newClassToAdd.trim())) return;
+    props.setClassesList([...props.classesList, newClassToAdd.trim()]);
+    setNewClassToAdd('');
+  };
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 px-2 overflow-x-auto hide-scrollbar">
+        <TabButton active={tab==='users'} icon={Shield} label="Utilisateurs" onClick={()=>setTab('users')} badge={props.users.filter(u=>u.status==='pending').length} />
+        <TabButton active={tab==='stock'} icon={Database} label="Stock" onClick={()=>setTab('stock')} />
+        <TabButton active={tab==='resources'} icon={BookOpen} label="Systèmes (TP/TD)" onClick={()=>setTab('resources')} />
+        <TabButton active={tab==='history'} icon={History} label="Mouvements" onClick={()=>setTab('history')} />
+        <TabButton active={tab==='settings'} icon={Settings} label="Paramètres" onClick={()=>setTab('settings')} />
+      </div>
+      
+      {tab === 'users' && <UserManagementSection {...props} currentUserRole="admin" />}
+      {tab === 'stock' && <StockManagementSection {...props} currentUserRole="admin" />}
+      {tab === 'resources' && <SystemResourcesSection {...props} />}
+      {tab === 'history' && <StockHistorySection history={props.stockHistory} />}
+      
+      {tab === 'settings' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
+           {/* Classes Management */}
+           <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm md:col-span-2">
+             <h3 className="font-bold mb-4 dark:text-white flex items-center gap-2"><Layers size={20}/> Gestion des Classes / Sections</h3>
+             <form onSubmit={handleAddClass} className="flex gap-2 mb-4">
+               <input type="text" value={newClassToAdd} onChange={e=>setNewClassToAdd(e.target.value)} placeholder="Ajouter une classe (ex: BTS CPRP)" className="flex-1 p-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 font-medium dark:text-white outline-none focus:border-blue-500" />
+               <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow-sm active:scale-95 transition-all">Ajouter</button>
+             </form>
+             <div className="flex flex-wrap gap-2">
+               {props.classesList.map(c => (
+                 <div key={c} className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg border dark:border-gray-600 shadow-sm text-sm">
+                   <span className="font-bold dark:text-white">{c}</span>
+                   <button onClick={() => props.setClassesList(props.classesList.filter(x => x !== c))} className="text-red-400 hover:text-red-600 transition-colors"><X size={14}/></button>
+                 </div>
+               ))}
+             </div>
+           </div>
+
+           <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm">
+             <h3 className="font-bold mb-4 dark:text-white">Personnalisation</h3>
+             <label className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 block">Nom de la Plateforme</label>
+             <input type="text" value={props.platformName} onChange={e=>props.updateState('platformName', e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg mb-4 bg-gray-50 dark:bg-gray-700 font-bold dark:text-white outline-none focus:border-blue-500" />
+             <button onClick={()=>props.updateState('isMaintenanceMode', !props.isMaintenanceMode)} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${props.isMaintenanceMode ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-gray-700 border dark:border-gray-600 dark:text-white hover:bg-gray-200'}`}>{props.isMaintenanceMode ? 'Sortir de Maintenance' : 'Activer Mode Maintenance'}</button>
+           </div>
+
+           <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm">
+             <h3 className="font-bold mb-4 dark:text-white">Sauvegardes Avancées (Base brute JSON)</h3>
+             <button onClick={exportData} className="w-full py-2.5 bg-green-600 text-white rounded-lg font-bold mb-3 active:scale-95 transition-all shadow-sm flex items-center justify-center gap-2"><Download size={16}/> Exporter Toutes les Données</button>
+             <label className="w-full py-2.5 bg-gray-100 dark:bg-gray-700 dark:text-white text-center rounded-lg font-bold block cursor-pointer border border-dashed border-gray-400 active:scale-95 transition-all hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center gap-2">
+               <Upload size={16}/> Restaurer depuis un fichier JSON
+               <input type="file" accept=".json" onChange={(e)=>{const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=(ev)=>{try{props.restoreDataState(JSON.parse(ev.target.result)); props.modals.showAlert("Succès","Restauré.");}catch(err){props.modals.showAlert("Erreur","Invalide.");}}; reader.readAsText(file); e.target.value=null;}} className="hidden"/>
+             </label>
+           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeacherDashboard(props) {
+  const [tab, setTab] = useState('projects');
+  const [ddfptCart, setDdfptCart] = useState([]);
+  
+  // Custom Material Form States
+  const [customMatName, setCustomMatName] = useState('');
+  const [customMatUrl, setCustomMatUrl] = useState('');
+  const [customMatPrice, setCustomMatPrice] = useState(0);
+  const [customMatQty, setCustomMatQty] = useState(1);
+  
+  const myReqs = props.requests; 
+  
+  const validateProject = (rid) => {
+    const req = props.requests.find(r=>r.id===rid);
+    const newM = props.materials.map(m=>{const i=req.items.find(it=>it.materialId===m.id); if(i){ const ns=Math.max(0,m.stock-i.qty); props.logStockMovement(m.name,-i.qty,ns,`Projet élève`,props.currentUser.name,i.qty*m.price); return {...m,stock:ns};} return m;});
+    props.setMaterials(newM); 
+    props.setRequests(props.requests.map(r=>r.id===rid?{...r,status:'Validé'}:r));
+  };
+
+  const returnItem = (rid, mid) => {
+    props.setRequests(props.requests.map(r => r.id===rid ? {...r, items: r.items.map(it=>it.materialId===mid?{...it, returned:true}:it)} : r));
+    const req = props.requests.find(r=>r.id===rid);
+    const qty = req.items.find(i=>i.materialId===mid).qty;
+    const mat = props.materials.find(m=>m.id===mid);
+    props.logStockMovement(mat.name, qty, mat.stock + qty, `Retour Emprunt`, props.currentUser.name, qty*mat.price);
+    props.setMaterials(props.materials.map(m=>m.id===mid ? {...m, stock: m.stock+qty} : m));
+  };
+
+  const handleAddDdfpt = (mat) => {
+    setDdfptCart(prev => prev.find(i=>i.materialId===mat.id) 
+      ? prev.map(i=>i.materialId===mat.id ? {...i, qty: i.qty+1} : i) 
+      : [...prev, {materialId: mat.id, qty: 1, isCustom: false}]
+    );
+  };
+
+  const handleAddCustomDdfpt = (e) => {
+    e.preventDefault();
+    if (!customMatName.trim()) return;
+    const customItem = {
+      materialId: 'custom_' + Date.now(),
+      name: customMatName,
+      url: customMatUrl,
+      price: customMatPrice,
+      qty: parseInt(customMatQty) || 1,
+      isCustom: true
+    };
+    setDdfptCart(prev => [...prev, customItem]);
+    setCustomMatName(''); setCustomMatUrl(''); setCustomMatPrice(0); setCustomMatQty(1);
+  };
+
+  const sendDdfptOrder = (e) => {
+    e.preventDefault();
+    if(ddfptCart.length === 0) return props.modals.showAlert("Erreur", "Le panier d'achat est vide.");
+    
+    let total = 0;
+    ddfptCart.forEach(item => {
+      if (item.isCustom) total += item.price * item.qty;
+      else total += (props.materials.find(m=>m.id===item.materialId)?.price || 0) * item.qty;
+    });
+
+    const newOrder = {
+       id: 'ord'+Date.now(),
+       teacherId: props.currentUser.id,
+       date: new Date().toLocaleDateString('fr-FR'),
+       items: ddfptCart,
+       status: 'En attente',
+       total
+    };
+    props.setDdfptOrders([...props.ddfptOrders, newOrder]);
+    setDdfptCart([]);
+    props.modals.showAlert("Succès", "La demande d'achat a bien été envoyée au DDFPT.");
+  };
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 px-2 overflow-x-auto hide-scrollbar">
+        <TabButton active={tab==='pedagogy'} icon={Briefcase} label="Projets Pédagogiques" onClick={()=>setTab('pedagogy')} />
+        <TabButton active={tab==='projects'} icon={FileText} label="Demandes Matériel" badge={myReqs.filter(r=>r.status==='En attente').length} onClick={()=>setTab('projects')} />
+        <TabButton active={tab==='groups'} icon={MessageSquare} label="Groupes" onClick={()=>setTab('groups')} />
+        <TabButton active={tab==='resources'} icon={BookOpen} label="Systèmes (TP/TD)" onClick={()=>setTab('resources')} />
+        <TabButton active={tab==='students'} icon={Users} label="Ma Classe" onClick={()=>setTab('students')} />
+        <TabButton active={tab==='ddfpt'} icon={ShoppingCart} label="DDFPT" onClick={()=>setTab('ddfpt')} />
+      </div>
+
+      {tab === 'pedagogy' && <TeacherProjectsSection {...props} />}
+
+      {tab === 'projects' && (
+        <div className="grid gap-3 animate-in fade-in">
+          {myReqs.length === 0 && <p className="text-center text-gray-500 italic p-10 dark:text-white">Aucune demande.</p>}
+          {myReqs.map(r => (
+            <div key={r.id} className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-center gap-4 ${r.status==='En attente'?'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 shadow-sm':'bg-white dark:bg-gray-800 dark:border-gray-700'}`}>
+               <div className="flex-1">
+                 <h4 className="font-bold dark:text-white text-base">{r.title} 
+                   <span className="text-[10px] opacity-50 ml-2">par {props.users.find(u=>u.id===r.studentId)?.name}</span>
+                   {r.teamMembers && r.teamMembers.length > 0 && <span className="text-[10px] opacity-50 ml-1">(+ {r.teamMembers.map(id => props.users.find(u=>u.id===id)?.name || 'Inconnu').join(', ')})</span>}
+                 </h4>
+                 <div className="flex flex-wrap gap-1 mt-2">{r.items.map((it, i)=><span key={it.materialId + '_' + i} className="text-[9px] bg-gray-50 dark:bg-gray-700 px-2 py-0.5 rounded border dark:border-gray-600 dark:text-gray-300 shadow-sm">{props.materials.find(m=>m.id===it.materialId)?.name || 'Inconnu'} (x{it.qty})</span>)}</div>
+               </div>
+               {r.status === 'En attente' && <button onClick={()=>validateProject(r.id)} className="bg-green-600 text-white px-6 py-2 rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all hover:bg-green-700">Valider</button>}
+               {r.status === 'Validé' && (
+                 <div className="flex flex-col items-end gap-2">
+                    <span className="text-green-500 font-bold text-[10px] uppercase border border-green-500 px-3 py-1 rounded-lg">Projet Validé</span>
+                    {r.items.some(it=>!it.returned && props.materials.find(m=>m.id===it.materialId)?.type==='emprunt') && (
+                      <div className="flex gap-1 flex-wrap justify-end">{r.items.filter(it=>!it.returned && props.materials.find(m=>m.id===it.materialId)?.type==='emprunt').map(it=>(
+                        <button key={it.materialId} onClick={()=>returnItem(r.id, it.materialId)} className="bg-green-500 text-white px-2 py-1 rounded text-[9px] font-bold shadow-sm active:scale-95 hover:bg-green-600">Rendu : {props.materials.find(m=>m.id===it.materialId)?.name}</button>
+                      ))}</div>
+                    )}
+                 </div>
+               )}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'groups' && <GroupsSection currentUser={props.currentUser} users={props.users} groups={props.groups || []} setGroups={props.setGroups} classesList={props.classesList} isTeacher={true} modals={props.modals} />}
+      {tab === 'resources' && <SystemResourcesSection {...props} />}
+      {tab === 'students' && <UserManagementSection {...props} currentUserRole="teacher" />}
+      {tab === 'ddfpt' && (
+        <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in">
+          <div className="flex-1 space-y-6">
+             <StockManagementSection {...props} currentUserRole="teacher" onAddToCart={handleAddDdfpt} />
+             
+             {/* Ajout d'un article hors catalogue par le prof */}
+             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm">
+                <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><PlusCircle size={18}/> Article Spécifique / Hors Catalogue</h3>
+                <form onSubmit={handleAddCustomDdfpt} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                  <input type="text" placeholder="Désignation précise..." required value={customMatName} onChange={e=>setCustomMatName(e.target.value)} className="md:col-span-2 p-2 border dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white outline-none" />
+                  <input type="url" placeholder="Lien fournisseur (optionnel)" value={customMatUrl} onChange={e=>setCustomMatUrl(e.target.value)} className="md:col-span-1 p-2 border dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white outline-none" />
+                  <input type="number" step="0.01" placeholder="Prix Unitaire €" value={customMatPrice} onChange={e=>setCustomMatPrice(e.target.value)} className="p-2 border dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white outline-none" />
+                  <div className="flex gap-2">
+                    <input type="number" placeholder="Qté" min="1" value={customMatQty} onChange={e=>setCustomMatQty(e.target.value)} className="w-16 p-2 border dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white outline-none" />
+                    <button type="submit" className="flex-1 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-sm active:scale-95 transition-all flex justify-center items-center"><Plus size={16}/></button>
+                  </div>
+                </form>
+             </div>
+          </div>
+
+          <div className="w-full lg:w-80 bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border dark:border-gray-700 h-fit sticky top-24 shadow-inner">
+             <h3 className="font-bold mb-4 dark:text-white border-b dark:border-gray-700 pb-2">Demande d'Achat DDFPT</h3>
+             <form onSubmit={sendDdfptOrder} className="flex flex-col h-full">
+               {ddfptCart.length === 0 && <p className="text-xs opacity-50 italic text-center py-6 dark:text-white">Cliquez sur "Ajouter" dans le catalogue pour construire votre commande.</p>}
+               {ddfptCart.map(i => (
+                 <div key={i.materialId} className={`flex justify-between items-center text-xs p-2 rounded-lg border mb-2 shadow-sm ${i.isCustom ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 dark:text-gray-200'}`}>
+                   <span className="font-bold truncate max-w-[120px]">{i.isCustom ? i.name : (props.materials.find(m=>m.id===i.materialId)?.name || 'Inconnu')}</span>
+                   <div className={`flex items-center gap-1 rounded-lg p-1 border ${i.isCustom ? 'bg-white dark:bg-gray-800 border-indigo-100' : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700'}`}>
+                     <button type="button" onClick={()=>setDdfptCart(ddfptCart.map(it=>it.materialId===i.materialId?{...it,qty:Math.max(1,it.qty-1)}:it))} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded dark:text-white transition-colors"><Minus size={10}/></button>
+                     <span className="font-bold">{i.qty}</span>
+                     <button type="button" onClick={()=>setDdfptCart(ddfptCart.map(it=>it.materialId===i.materialId?{...it,qty:it.qty+1}:it))} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded dark:text-white transition-colors"><Plus size={10}/></button>
+                     <div className="w-px h-3 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                     <button type="button" onClick={()=>setDdfptCart(ddfptCart.filter(it=>it.materialId!==i.materialId))} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={12}/></button>
+                   </div>
+                 </div>
+               ))}
+               {ddfptCart.length > 0 && <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-4 shadow-lg hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"><Send size={16}/> Envoyer au DDFPT</button>}
+             </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DdfptDashboard(props) {
+  const [tab, setTab] = useState('inbox');
+  const orders = props.ddfptOrders.filter(o => o.status !== 'Réceptionnée' && o.status !== 'Refusée');
+  
+  // Custom Supplier Order logic for DDFPT
+  const [supplierCart, setSupplierCart] = useState([]);
+  const [supName, setSupName] = useState('');
+  const [supUrl, setSupUrl] = useState('');
+  const [supPrice, setSupPrice] = useState('');
+  const [supQty, setSupQty] = useState(1);
+
+  const validateOrder = (order) => {
+    downloadOrderExport(order, props.materials);
+    props.setDdfptOrders(props.ddfptOrders.map(od=>od.id===order.id?{...od,status:'Commandée'}:od));
+  };
+  
+  const receiveOrder = (order) => {
+    let newM = [...props.materials];
+    order.items.forEach(i=>{
+      if (!i.isCustom) {
+        const mat = newM.find(ms=>ms.id===i.materialId); 
+        if(mat){
+          props.logStockMovement(mat.name,i.qty,mat.stock+i.qty,"Livraison","DDFPT",i.qty*mat.price); 
+          newM = newM.map(ms=>ms.id===i.materialId?{...ms,stock:ms.stock+i.qty}:ms);
+        }
+      }
+    });
+    props.setMaterials(newM); 
+    props.setDdfptOrders(props.ddfptOrders.map(od=>od.id===order.id?{...od,status:'Réceptionnée'}:od));
+  };
+
+  const handleAddSupplierItem = (e) => {
+    e.preventDefault();
+    if (!supName.trim()) return;
+    setSupplierCart([...supplierCart, {
+      id: 'ext_'+Date.now(),
+      name: supName,
+      url: supUrl,
+      price: parseFloat(supPrice) || 0,
+      qty: parseInt(supQty) || 1
+    }]);
+    setSupName(''); setSupUrl(''); setSupPrice(''); setSupQty(1);
+  };
+
+  const generateSupplierOrder = () => {
+    if (supplierCart.length === 0) return;
+    const fakeOrder = { id: Date.now().toString(), items: supplierCart.map(i => ({...i, isCustom: true})) };
+    downloadOrderExport(fakeOrder, []);
+    setSupplierCart([]);
+    props.modals.showAlert("Bon généré", "Le bon de commande externe a été téléchargé au format CSV.");
+  };
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 px-2 overflow-x-auto hide-scrollbar">
+        <TabButton active={tab==='inbox'} icon={Inbox} label="Demandes Internes (Profs)" badge={orders.length} onClick={()=>setTab('inbox')} />
+        <TabButton active={tab==='supplier'} icon={ShoppingCart} label="Achat Fournisseur (+)" onClick={()=>setTab('supplier')} />
+        <TabButton active={tab==='stock'} icon={Database} label="Inventaire & Stock" onClick={()=>setTab('stock')} />
+        <TabButton active={tab==='resources'} icon={BookOpen} label="Ressources" onClick={()=>setTab('resources')} />
+      </div>
+      
+      {tab === 'inbox' && (
+        <div className="grid gap-3 animate-in fade-in">
+          {orders.length === 0 ? <p className="p-10 opacity-30 italic text-center dark:text-white">Aucune commande en cours.</p> : orders.map(o => (
+            <div key={o.id} className="p-4 bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+               <div>
+                 <h4 className="font-bold dark:text-white flex items-center gap-2">
+                   Demande de {props.users.find(u=>u.id===o.teacherId)?.name || 'Inconnu'} 
+                   <span className="text-[10px] font-normal opacity-50 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{o.date}</span>
+                 </h4>
+                 <div className="mt-2 flex flex-wrap gap-1">
+                   {o.items.map((it, i) => (
+                     <span key={it.materialId + '_' + i} className={`text-[10px] px-1.5 py-0.5 rounded border shadow-sm ${it.isCustom ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-gray-50 border-gray-200 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}`}>
+                       {it.isCustom ? `${it.name} [Hors Cat.]` : (props.materials.find(m=>m.id===it.materialId)?.name || 'Inconnu')} (x{it.qty})
+                     </span>
+                   ))}
+                 </div>
+               </div>
+               <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+                 {o.status === 'En attente' ? <button onClick={()=>validateOrder(o)} className="w-full md:w-auto bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all">Lancer Achat / CSV</button>
+                 : <button onClick={()=>receiveOrder(o)} className="w-full md:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all">Réceptionner</button>}
+               </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'supplier' && (
+        <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in">
+           <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm">
+              <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-blue-500"/> Créer une Commande Fournisseur</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">Ajoutez les articles que vous souhaitez commander sur Internet. Vous générerez ensuite un bon de commande récapitulatif (CSV) avec les liens et les tarifs.</p>
+              
+              <form onSubmit={handleAddSupplierItem} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-6 bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900">
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-bold uppercase opacity-60 block mb-1">Désignation</label>
+                    <input type="text" required value={supName} onChange={e=>setSupName(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 outline-none" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-bold uppercase opacity-60 block mb-1">Lien du site d'achat</label>
+                    <input type="url" required value={supUrl} onChange={e=>setSupUrl(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 outline-none" placeholder="https://..." />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase opacity-60 block mb-1">Prix U. (€)</label>
+                    <input type="number" step="0.01" required value={supPrice} onChange={e=>setSupPrice(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 outline-none" />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-[10px] font-bold uppercase opacity-60 block mb-1">Qté</label>
+                    <div className="flex gap-2">
+                      <input type="number" min="1" required value={supQty} onChange={e=>setSupQty(e.target.value)} className="w-full p-2 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 outline-none" />
+                      <button type="submit" className="bg-blue-600 text-white px-3 rounded-lg shadow-sm active:scale-95 transition-all"><Plus size={16}/></button>
+                    </div>
+                  </div>
+              </form>
+
+              <div className="bg-gray-50 dark:bg-gray-900 border dark:border-gray-700 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-100 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
+                    <tr><th className="p-3">Article</th><th className="p-3 text-center">Qté</th><th className="p-3 text-right">Prix U.</th><th className="p-3 text-right">Total</th><th className="p-3"></th></tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-gray-700">
+                    {supplierCart.length === 0 && <tr><td colSpan="5" className="p-6 text-center italic text-gray-400">Aucun article dans le bon.</td></tr>}
+                    {supplierCart.map(item => (
+                      <tr key={item.id} className="hover:bg-white dark:hover:bg-gray-800 transition-colors">
+                        <td className="p-3">
+                          <p className="font-bold dark:text-white">{item.name}</p>
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-0.5"><ExternalLink size={10}/> Voir sur le site</a>
+                        </td>
+                        <td className="p-3 text-center font-medium">{item.qty}</td>
+                        <td className="p-3 text-right text-gray-600 dark:text-gray-400">{item.price.toFixed(2)} €</td>
+                        <td className="p-3 text-right font-bold text-blue-600 dark:text-blue-400">{(item.price * item.qty).toFixed(2)} €</td>
+                        <td className="p-3 text-right">
+                          <button onClick={() => setSupplierCart(supplierCart.filter(i => i.id !== item.id))} className="text-red-400 hover:text-red-600 p-1 rounded-lg"><Trash2 size={16}/></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {supplierCart.length > 0 && (
+                    <tfoot className="bg-gray-100 dark:bg-gray-800 font-black text-sm border-t-2 dark:border-gray-600">
+                      <tr>
+                        <td colSpan="3" className="p-3 text-right">MONTANT TOTAL ESTIMÉ</td>
+                        <td className="p-3 text-right text-blue-600 dark:text-blue-400">{supplierCart.reduce((acc, i) => acc + (i.price * i.qty), 0).toFixed(2)} €</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              {supplierCart.length > 0 && (
+                <div className="mt-6 flex justify-end">
+                  <button onClick={generateSupplierOrder} className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center gap-2">
+                    <Download size={18}/> Exporter le Bon (CSV)
+                  </button>
+                </div>
+              )}
+           </div>
+        </div>
+      )}
+
+      {tab === 'stock' && <StockManagementSection {...props} currentUserRole="ddfpt" />}
+      {tab === 'resources' && <SystemResourcesSection {...props} />}
+    </div>
+  );
+}
+
+function StudentDashboard(props) {
+  const [tab, setTab] = useState('pedagogy');
+  const [cart, setCart] = useState([]);
+  const [title, setTitle] = useState('');
+  const [teamMembers, setTeamMembers] = useState([]);
+  
+  const myReqs = props.requests.filter(r => r.studentId === props.currentUser.id);
+  const categories = [...new Set(props.materials.map(m => m.category))];
+  const classmates = props.users.filter(u => u.role === 'student' && u.id !== props.currentUser.id && u.status === 'active');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if(cart.length === 0) return props.modals.showAlert("Erreur", "Panier vide. Ajoutez du matériel à votre projet.");
+    if(!title.trim()) return props.modals.showAlert("Erreur", "Titre du projet requis.");
+    
+    props.setRequests([...props.requests, { 
+      id: Date.now().toString(), 
+      studentId: props.currentUser.id, 
+      teamMembers: teamMembers,
+      title, 
+      items: [...cart], 
+      status: 'En attente' 
+    }]);
+    
+    setCart([]); setTitle(''); setTeamMembers([]); setTab('history');
+    props.modals.showAlert("Succès", "Demande envoyée au professeur !");
+  };
+
+  const exportBilan = (req) => {
+    let csvContent = "Composant;Quantite;Prix Unitaire (€);Total Financier (€);Empreinte Carbone Unitaire (kg CO2e);Total Carbone (kg CO2e)\n";
+    let totalPrix = 0;
+    let totalCarbone = 0;
+
+    req.items.forEach(item => {
+        const mat = props.materials.find(m => m.id === item.materialId);
+        const price = mat?.price || 0;
+        const carbon = mat?.carbonFootprint || 0;
+        const linePrice = price * item.qty;
+        const lineCarbon = carbon * item.qty;
+        
+        totalPrix += linePrice;
+        totalCarbone += lineCarbon;
+        
+        csvContent += `"${mat?.name || 'Inconnu'}";${item.qty};${price};${linePrice.toFixed(2)};${carbon};${lineCarbon.toFixed(2)}\n`;
+    });
+
+    csvContent += `;;;TOTAL FINANCIER;${totalPrix.toFixed(2)} €;\n`;
+    csvContent += `;;;TOTAL CARBONE;;${totalCarbone.toFixed(2)} kg CO2e\n`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Bilan_${req.title.replace(/\s+/g, '_')}.csv`;
+    link.click();
+  };
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 px-2 overflow-x-auto hide-scrollbar">
+        <TabButton active={tab==='pedagogy'} icon={Briefcase} label="Mes Projets Pédagogiques" onClick={()=>setTab('pedagogy')} />
+        <TabButton active={tab==='new'} icon={Plus} label="Demande Matériel" onClick={()=>setTab('new')} />
+        <TabButton active={tab==='groups'} icon={MessageSquare} label="Mes Groupes" onClick={()=>setTab('groups')} />
+        <TabButton active={tab==='resources'} icon={BookOpen} label="Systèmes (TP/TD)" onClick={()=>setTab('resources')} />
+        <TabButton active={tab==='workspace'} icon={HardDrive} label="Mon Espace (Drive & Fichiers)" onClick={()=>setTab('workspace')} />
+        <TabButton active={tab==='history'} icon={FileText} label="Historique" onClick={()=>setTab('history')} />
+      </div>
+
+      {tab === 'pedagogy' && <StudentProjectsSection pedagogicalProjects={props.pedagogicalProjects} currentUser={props.currentUser} />}
+      
+      {tab === 'workspace' && <StudentWorkspaceSection currentUser={props.currentUser} updateState={props.updateState} modals={props.modals} />}
+      
+      {tab === 'new' && (
+        <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in">
+          <div className="flex-1 space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border dark:border-blue-800 flex items-center gap-4 dark:text-blue-300 shadow-sm">
+              <Bot size={28}/>
+              <p className="text-xs">Besoin d'aide dans tes choix ? <strong>L'Assistant IA</strong> est disponible en bas à droite !</p>
+            </div>
+            {categories.length === 0 && <p className="text-sm opacity-50 italic text-center py-10 dark:text-white">Aucun composant disponible.</p>}
+            {categories.map(c => (
+              <div key={c}>
+                <h4 className="text-[10px] font-black uppercase opacity-40 mb-2 border-b dark:border-gray-700 pb-1 dark:text-gray-400">{c}</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {props.materials.filter(m=>m.category===c).map(m=>
+                    <MaterialCard 
+                      key={m.id} 
+                      material={m} 
+                      hidePrice={true} 
+                      onAdd={(mat)=>setCart(prev=>prev.find(i=>i.materialId===mat.id)?prev.map(i=>i.materialId===mat.id?{...i,qty:i.qty+1}:i):[...prev,{materialId:mat.id,qty:1,returned:mat.type==='emprunt'?false:true}])} 
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="w-full lg:w-80 bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border dark:border-gray-700 h-fit sticky top-24 shadow-inner">
+             <form onSubmit={handleSubmit} className="flex flex-col h-full">
+               <input type="text" placeholder="Titre du projet" value={title} onChange={e=>setTitle(e.target.value)} required className="w-full p-3 border dark:border-gray-600 rounded-xl mb-4 bg-white dark:bg-gray-700 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" />
+               
+               <div className="mb-4">
+                 <label className="text-[10px] uppercase font-bold opacity-50 block mb-1 dark:text-white">Coéquipiers (Optionnel)</label>
+                 <div className="max-h-24 overflow-y-auto border dark:border-gray-600 p-2 rounded-xl bg-white dark:bg-gray-800 shadow-sm custom-scrollbar">
+                   {classmates.map(c => (
+                     <label key={c.id} className="flex items-center gap-2 p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                       <input type="checkbox" checked={teamMembers.includes(c.id)} onChange={(e) => e.target.checked ? setTeamMembers([...teamMembers, c.id]) : setTeamMembers(teamMembers.filter(id=>id!==c.id))} className="rounded text-blue-600 border-gray-300 focus:ring-blue-500" />
+                       <span className="text-xs dark:text-gray-200">{c.name}</span>
+                     </label>
+                   ))}
+                   {classmates.length === 0 && <span className="text-xs opacity-50 italic dark:text-white">Aucun élève de votre classe disponible</span>}
+                 </div>
+               </div>
+
+               <div className="space-y-2 flex-1">
+                 <label className="text-[10px] uppercase font-bold opacity-50 block mb-1 dark:text-white">Composants demandés</label>
+                 {cart.length === 0 && <p className="text-xs text-center opacity-50 italic py-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl dark:text-white">Panier vide</p>}
+                 {cart.map(i => (
+                   <div key={i.materialId} className="flex justify-between items-center text-xs bg-white dark:bg-gray-800 p-2 rounded-xl border dark:border-gray-600 mb-2 shadow-sm">
+                     <span className="font-bold truncate dark:text-white pr-2">{props.materials.find(m=>m.id===i.materialId)?.name || 'Inconnu'}</span>
+                     <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900 rounded-lg p-1 border dark:border-gray-700">
+                       <button type="button" onClick={()=>setCart(cart.map(it=>it.materialId===i.materialId?{...it,qty:Math.max(1,it.qty-1)}:it))} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded dark:text-white transition-colors"><Minus size={10}/></button>
+                       <span className="font-bold dark:text-white w-4 text-center">{i.qty}</span>
+                       <button type="button" onClick={()=>setCart(cart.map(it=>it.materialId===i.materialId?{...it,qty:it.qty+1}:it))} className="p-1 hover:bg-white dark:hover:bg-gray-700 rounded dark:text-white transition-colors"><Plus size={10}/></button>
+                       <div className="w-px h-3 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                       <button type="button" onClick={()=>setCart(cart.filter(it=>it.materialId!==i.materialId))} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={12}/></button>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+               
+               <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-4 shadow-lg hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"><Send size={16}/> Envoyer au prof</button>
+             </form>
+          </div>
+        </div>
+      )}
+      {tab === 'groups' && <GroupsSection currentUser={props.currentUser} users={props.users} groups={props.groups || []} setGroups={props.setGroups} isTeacher={false} modals={props.modals} classesList={props.classesList} />}
+      {tab === 'resources' && <SystemResourcesSection {...props} />}
+      {tab === 'history' && (
+        <div className="grid gap-3">
+          {myReqs.length === 0 && <p className="text-center opacity-40 italic mt-8 dark:text-white">Aucune demande envoyée.</p>}
+          {myReqs.map(r => (
+            <div key={r.id} className="p-5 bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 opacity-90 hover:opacity-100 transition-opacity">
+              <div className="flex-1">
+                <h4 className="font-bold text-sm dark:text-white uppercase">
+                  {r.title}
+                  {r.teamMembers && r.teamMembers.length > 0 && <span className="normal-case text-[10px] opacity-50 ml-2 font-medium">(Équipe : {r.teamMembers.map(id => props.users.find(u=>u.id===id)?.name || 'Inconnu').join(', ')})</span>}
+                </h4>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {r.items.map((it, i) => <span key={it.materialId + '_' + i} className="bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded-md border dark:border-gray-600 text-[10px] dark:text-gray-200">{props.materials.find(m=>m.id===it.materialId)?.name || 'Inconnu'} (x{it.qty})</span>)}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2 mt-4 md:mt-0">
+                <span className={`text-[10px] px-3 py-1.5 rounded-full font-black shadow-sm uppercase tracking-wider ${r.status==='Validé'?'bg-green-100 text-green-700 border border-green-200':'bg-yellow-100 text-yellow-700 border border-yellow-200'}`}>{r.status}</span>
+                <button onClick={() => exportBilan(r)} className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 dark:hover:bg-indigo-900/50 px-3 py-1.5 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5">
+                  <FileSpreadsheet size={12}/> Bilan Excel/CSV
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 9. RENDER PRINCIPAL (APP)
+// ==========================================
+
+export default function App() {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [globalState, setGlobalState] = useState({ 
+    users: initialUsers, materials: [], requests: [], ddfptOrders: [], 
+    groups: [], classesList: INITIAL_CLASSES, stockHistory: [], resources: [],
+    pedagogicalProjects: [], // Nouvel état pour les projets
+    platformName: 'FabLab', isMaintenanceMode: false 
+  });
+  const [fbUser, setFbUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [modalConfig, setModalConfig] = useState({ isOpen: false });
+  const [showCharte, setShowCharte] = useState(false);
+
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPwd, setLoginPwd] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [showLoginPwd, setShowLoginPwd] = useState(false);
+  const [showForgotPwd, setShowForgotPwd] = useState(false);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
+
+  useEffect(() => { window.__globalState = globalState; }, [globalState]);
+
+  const updateState = (key, value) => {
+    setGlobalState(prev => ({ ...prev, [key]: value }));
+    if (db && fbUser) {
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      const cleanValue = value !== undefined ? JSON.parse(JSON.stringify(value)) : null;
+      setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appState', 'main'), { [key]: cleanValue }, { merge: true })
+        .catch(e => console.error("Erreur Firestore:", e));
+    }
+  };
+
+  const setUsers = (v) => updateState('users', v);
+  const setMaterials = (v) => updateState('materials', v);
+  const setRequests = (v) => updateState('requests', v);
+  const setDdfptOrders = (v) => updateState('ddfptOrders', v);
+  const setGroups = (v) => updateState('groups', v);
+  const setClassesList = (v) => updateState('classesList', v);
+  const setPlatformName = (v) => updateState('platformName', v);
+  const setResources = (v) => updateState('resources', v);
+  const setPedagogicalProjects = (v) => updateState('pedagogicalProjects', v);
+
+  const restoreDataState = (d) => {
+    if(d.users) updateState('users', d.users);
+    if(d.materials) updateState('materials', d.materials);
+    if(d.requests) updateState('requests', d.requests);
+    if(d.ddfptOrders) updateState('ddfptOrders', d.ddfptOrders);
+    if(d.groups) updateState('groups', d.groups);
+    if(d.classesList) updateState('classesList', d.classesList);
+    if(d.stockHistory) updateState('stockHistory', d.stockHistory);
+    if(d.resources) updateState('resources', d.resources);
+    if(d.pedagogicalProjects) updateState('pedagogicalProjects', d.pedagogicalProjects);
+  };
+
+  const logStockMovement = (matName, change, newStock, reason, user, value) => {
+    const entry = { id: 'h'+Date.now(), date: new Date().toLocaleString('fr-FR'), matName, change, newStock, reason, user, value };
+    updateState('stockHistory', [entry, ...(globalState.stockHistory || [])]);
+  };
+
+  useEffect(() => {
+    if (!auth) { setIsLoaded(true); return; }
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+        else await signInAnonymously(auth);
+      } catch(e) {}
+    };
+    initAuth();
+    const unsub = onAuthStateChanged(auth, setFbUser);
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!fbUser || !db) return;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'appState', 'main'), (snap) => {
+      if (snap.exists()) setGlobalState(prev => ({ ...prev, ...snap.data() }));
+      else setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appState', 'main'), globalState);
+      setIsLoaded(true);
+    });
+    return () => unsub();
+  }, [fbUser]);
+
+  const modalHelpers = {
+    showAlert: (title, message) => setModalConfig({ isOpen: true, type: 'alert', title, message }),
+    showConfirm: (title, message, onConfirm) => setModalConfig({ isOpen: true, type: 'confirm', title, message, onConfirm }),
+    showPrompt: (title, message, onConfirm) => setModalConfig({ isOpen: true, type: 'prompt', title, message, onConfirm })
+  };
+
+  if (!isLoaded) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-blue-600 font-bold animate-pulse tracking-widest uppercase">Initialisation...</div>;
+
+  if (currentUser && globalState.isMaintenanceMode && currentUser.role !== 'admin') {
+    return (
+       <div className={isDarkMode ? 'dark' : ''}>
+         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center p-4 text-center">
+            <Lock size={64} className="text-red-500 mb-6" />
+            <h1 className="text-3xl font-black dark:text-white uppercase">Maintenance</h1>
+            <p className="text-gray-600 dark:text-gray-400 max-w-sm mt-4 italic opacity-70">L'administrateur prépare une mise à jour. Revenez dans quelques minutes.</p>
+            <button onClick={() => setCurrentUser(null)} className="mt-8 px-6 py-2 bg-blue-600 text-white rounded-xl font-bold active:scale-95 transition-all">Retour</button>
+         </div>
+       </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className={isDarkMode ? 'dark' : ''}>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center p-4">
+          <GlobalModal config={modalConfig} onClose={() => setModalConfig({isOpen: false})} />
+          {showCharte && <CharteModal onClose={() => setShowCharte(false)} />}
+          
+          {pendingGoogleUser && <GoogleRegistrationModal pendingUser={pendingGoogleUser} classesList={globalState.classesList} onClose={() => setPendingGoogleUser(null)} onSubmit={(fn, ln, uc, pd) => {
+            const creds = generateCredentials(fn, ln);
+            updateState('users', [...globalState.users, { id: Date.now().toString(), name: `${fn} ${ln}`, username: creds.username, password: creds.password, role: uc === 'Professeur' ? 'teacher' : 'student', className: uc === 'Professeur' ? '' : uc, googleUid: pd.uid, googleEmail: pd.email, status: 'pending', teacherId: '' }]);
+            setPendingGoogleUser(null);
+            modalHelpers.showAlert("Demande envoyée", "Veuillez patienter pour la validation par un professeur.");
+          }} />}
+
+          <div className="mb-8 text-center flex flex-col items-center animate-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-3 sm:p-4 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-800 mb-6 flex justify-center items-center">
+               <Logo className="h-20 sm:h-24 w-auto" />
+            </div>
+            <h1 className="text-4xl font-black dark:text-white tracking-tighter uppercase">{globalState.platformName}</h1>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl w-full max-w-md border dark:border-gray-700 animate-in zoom-in-95 duration-500">
+             <form onSubmit={(e)=>{
+               e.preventDefault();
+               const user = globalState.users.find(u => u.username === loginUser && u.password === loginPwd);
+               if (user) {
+                 if(user.status === 'pending') setLoginError("Compte en attente de validation.");
+                 else { setCurrentUser(user); setLoginError(''); }
+               } else setLoginError("Identifiants incorrects.");
+             }} className="space-y-4">
+               <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} className="w-full p-4 border dark:border-gray-600 rounded-2xl bg-gray-50 dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Identifiant" required />
+               <div className="relative">
+                 <input type={showLoginPwd ? "text" : "password"} value={loginPwd} onChange={(e) => setLoginPwd(e.target.value)} className="w-full p-4 border dark:border-gray-600 rounded-2xl bg-gray-50 dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Mot de passe" required />
+                 <button type="button" onClick={() => setShowLoginPwd(!showLoginPwd)} className="absolute right-4 top-4.5 text-gray-400">{showLoginPwd ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+               </div>
+               {loginError && <p className="text-red-500 text-xs font-bold text-center bg-red-50 dark:bg-red-900/30 py-2 rounded-xl">{loginError}</p>}
+               <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-2xl font-bold active:scale-95 shadow-lg hover:bg-blue-700 transition-all uppercase tracking-widest text-sm">Se connecter</button>
+             </form>
+             
+             <div className="my-6 flex items-center gap-4">
+               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+               <span className="text-[10px] uppercase font-bold text-gray-400">Ou</span>
+               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+             </div>
+
+             <button onClick={async () => { 
+                try {
+                  const res = await signInWithPopup(auth, new GoogleAuthProvider()); 
+                  const matched = globalState.users.find(u => u.googleUid === res.user.uid || u.googleEmail === res.user.email); 
+                  if(matched) { if(matched.status === 'pending') setLoginError("Validation requise."); else setCurrentUser(matched); } 
+                  else { setPendingGoogleUser({ uid: res.user.uid, email: res.user.email }); } 
+                } catch(e) {}
+             }} className="w-full bg-white dark:bg-gray-700 border-2 dark:border-gray-200 dark:border-gray-600 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 dark:text-white active:scale-95 transition-all hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm">
+                <Mail size={20}/> Continuer avec Gmail
+             </button>
+
+             <div className="text-center mt-6">
+                <button type="button" onClick={() => setShowForgotPwd(!showForgotPwd)} className="text-xs text-blue-600 hover:underline font-bold">Mot de passe oublié ?</button>
+             </div>
+             
+             {showForgotPwd && (
+                <form onSubmit={(e) => { e.preventDefault(); modalHelpers.showAlert("Aide", "Une demande a été envoyée à l'administrateur."); setShowForgotPwd(false); }} className="mt-4 p-4 border dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900 animate-in slide-in-from-top-2">
+                  <input type="text" placeholder="Entrez votre identifiant" required className="w-full p-2 mb-3 border dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500" />
+                  <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded-lg text-xs font-bold active:scale-95 transition-all">Demander réinitialisation</button>
+                </form>
+             )}
+          </div>
+          
+          <div className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400">
+            <button onClick={() => setShowCharte(true)} className="hover:underline hover:text-blue-500 font-bold transition-colors">Charte d'utilisation du FabLab</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const sharedProps = { 
+    users: globalState.users, materials: globalState.materials, requests: globalState.requests, ddfptOrders: globalState.ddfptOrders, groups: globalState.groups, classesList: globalState.classesList, stockHistory: globalState.stockHistory || [], resources: globalState.resources || [], pedagogicalProjects: globalState.pedagogicalProjects || [], isMaintenanceMode: globalState.isMaintenanceMode, platformName: globalState.platformName,
+    currentUser, currentUserId: currentUser.id, modals: modalHelpers, updateState, restoreDataState,
+    setUsers, setMaterials, setRequests, setDdfptOrders, setClassesList, setGroups, setResources, setPedagogicalProjects, setPlatformName, logStockMovement 
+  };
+
+  return (
+    <ErrorBoundary>
+      <div className={isDarkMode ? 'dark' : ''}>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 flex flex-col">
+          <GlobalModal config={modalConfig} onClose={() => setModalConfig({isOpen: false})} />
+          {showCharte && <CharteModal onClose={() => setShowCharte(false)} />}
+          {isSettingsOpen && <SettingsModal currentUser={currentUser} onUpdateProfile={(id, un, pw)=>updateState('users', globalState.users.map(u=>u.id===id?{...u,username:un,password:pw}:u))} onLinkGoogle={(id, uid, em)=>updateState('users', globalState.users.map(u=>u.id===id?{...u,googleUid:uid,googleEmail:em}:u))} onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} modals={modalHelpers} />}
+          {currentUser && <AIAssistant currentUser={currentUser} />}
+
+          <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-20">
+            <div className="flex items-center gap-4">
+              <div className="bg-white p-1.5 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center">
+                <Logo className="h-8 w-auto" />
+              </div>
+              {currentUser.role === 'admin' && (
+                <div className="bg-blue-600 p-2 rounded-lg shadow-inner hidden sm:block"><Wrench className="text-white" size={20} /></div>
+              )}
+              <h1 className="text-xl font-black hidden md:block tracking-tighter uppercase">{globalState.platformName}</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden md:block text-right"><p className="text-xs font-bold leading-none">{currentUser.name}</p><p className="text-[9px] opacity-50 uppercase tracking-widest">{currentUser.role}</p></div>
+              <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full active:scale-95 transition-all"><Settings size={22} /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+              <button onClick={() => setCurrentUser(null)} className="flex items-center gap-2 text-red-500 font-bold text-sm bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 px-4 py-2 rounded-xl transition-all active:scale-95"><LogOut size={16}/> <span className="hidden sm:inline">Quitter</span></button>
+            </div>
+          </header>
+
+          <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 mt-2 relative z-0">
+            {currentUser.role === 'admin' && <AdminDashboard {...sharedProps} />}
+            {currentUser.role === 'teacher' && <TeacherDashboard {...sharedProps} />}
+            {currentUser.role === 'ddfpt' && <DdfptDashboard {...sharedProps} />}
+            {currentUser.role === 'student' && <StudentDashboard {...sharedProps} />}
+          </main>
+          
+          <Footer setShowCharte={setShowCharte} />
+        </div>
+      </div>
+    </ErrorBoundary>
+  );
+}
