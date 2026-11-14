@@ -1054,14 +1054,13 @@ function etiquette(txt, x, y) {
 }
 
 /* ---------- Diagramme d'exigences ----------
-   Hiérarchie de haut en bas : l'exigence mère est au-dessus de ses exigences filles.
-   Les liens sont tracés à angles droits (« en peigne ») et ne passent jamais sous une case :
-   - les filles qui ont elles-mêmes des filles sont alignées sur une rangée, reliées par une barre horizontale ;
-   - les filles « feuilles » (sans descendance) sont empilées de part et d'autre d'un tronc vertical,
-     ce qui garde le diagramme compact et lisible sur une feuille A4. */
+   Lecture de gauche à droite : l'exigence mère est à gauche, ses exigences filles
+   sont empilées à sa droite, une par ligne. Les liens sont tracés à angles droits
+   (trait horizontal, barre verticale, puis un trait horizontal vers chaque fille) :
+   ils ne passent jamais sous une case et chaque fille a son propre trait. */
 function construireExigences() {
   const ex = projet.exigences, parUid = {}; ex.forEach(e => parUid[e.uid] = e);
-  const W = 200, ECART = 26, VG = 54, TRONC = 22;   // largeur des cases, écarts horizontal / vertical, demi-écart du tronc
+  const W = 200, EV = 18, EH = 90;   // largeur des cases, écart vertical entre cases, écart horizontal entre niveaux
   const noeuds = ex.map(e => {
     const corps = [`Id = "${e.id || '?'}"`];
     couper('Texte = « ' + (e.texte || '…') + ' »', 29).forEach(l => corps.push(l));
@@ -1071,56 +1070,32 @@ function construireExigences() {
   });
   const parKey = {}; noeuds.forEach(n => parKey[n.key] = n);
   const raffine = k => parKey[k].e.typeRel === 'raffinement';
-  // Arborescence : le « parent » d'une exigence est son exigence mère
+  // Arborescence : le « parent » d'une exigence est son exigence mère (construite sans boucle)
   const parent = n => { const r = n.e.relation; return r && r !== n.e.uid && parUid[r] ? r : null; };
   const enfants = {}; noeuds.forEach(n => enfants[n.key] = []);
   const vu = new Set();
-  // Construction de l'arbre sans boucle (une exigence n'est rattachée qu'une fois)
   const racines = noeuds.filter(n => !parent(n)).map(n => n.key);
   const relier = k => { vu.add(k); noeuds.forEach(n => { if (parent(n) === k && !vu.has(n.key)) { enfants[k].push(n.key); relier(n.key); } }); };
   racines.forEach(relier);
   noeuds.forEach(n => { if (!vu.has(n.key)) { racines.push(n.key); relier(n.key); } });   // exigences prises dans une boucle
 
-  /* 1) Mesure : largeur occupée par chaque sous-arbre et organisation de ses filles */
-  const orga = {};
+  /* 1) Hauteur occupée par chaque sous-arbre */
+  const H = {};
   const mesurer = k => {
     const ks = enfants[k];
-    const feuilles = ks.filter(c => !enfants[c].length && !raffine(c));
-    const bloc = feuilles.length >= 2 ? feuilles : [];
-    const creneaux = ks.filter(c => !bloc.includes(c)).map(c => ({ type: 'arbre', k: c, w: mesurer(c) }));
-    if (bloc.length) {
-      const cols = bloc.length >= 3 ? 2 : 1;
-      creneaux.push({ type: 'bloc', ks: bloc, cols, w: cols === 2 ? 2 * W + 2 * TRONC : W + TRONC + 10 });
-    }
-    const wRang = creneaux.reduce((s, c) => s + c.w, 0) + ECART * Math.max(0, creneaux.length - 1);
-    orga[k] = { creneaux, wRang, w: Math.max(W, wRang) };
-    return orga[k].w;
+    const hk = ks.reduce((s, c) => s + mesurer(c), 0) + EV * Math.max(0, ks.length - 1);
+    return (H[k] = Math.max(parKey[k].h, hk));
   };
-  /* 2) Placement (positions par défaut) */
-  const defaut = {}, cote = {};
-  const placer = (k, x0, yTop) => {
-    const o = orga[k], n = parKey[k];
-    defaut[k] = { x: x0 + o.w / 2, y: yTop + n.h / 2 };
-    const yF = yTop + n.h + VG;
-    let x = x0 + (o.w - o.wRang) / 2;
-    o.creneaux.forEach(c => {
-      if (c.type === 'arbre') placer(c.k, x, yF);
-      else {
-        let y = yF;
-        for (let i = 0; i < c.ks.length; i += c.cols) {
-          const rang = c.ks.slice(i, i + c.cols), h = Math.max(...rang.map(r => parKey[r].h));
-          rang.forEach((r, j) => {
-            if (c.cols === 2) { cote[r] = j ? 'd' : 'g'; defaut[r] = { x: j ? x + W + 2 * TRONC + W / 2 : x + W / 2, y: y + parKey[r].h / 2 }; }
-            else { cote[r] = 'd'; defaut[r] = { x: x + TRONC + 10 + W / 2, y: y + parKey[r].h / 2 }; }
-          });
-          y += h + 18;
-        }
-      }
-      x += c.w + ECART;
-    });
+  /* 2) Positions par défaut : la mère est centrée verticalement face à ses filles */
+  const defaut = {};
+  const placer = (k, x, yTop) => {
+    defaut[k] = { x: x + W / 2, y: yTop + H[k] / 2 };
+    const ks = enfants[k], hk = ks.reduce((s, c) => s + H[c], 0) + EV * Math.max(0, ks.length - 1);
+    let y = yTop + (H[k] - hk) / 2;
+    ks.forEach(c => { placer(c, x + W + EH, y); y += H[c] + EV; });
   };
-  let xr = 0;
-  racines.forEach(k => { mesurer(k); placer(k, xr, 0); xr += orga[k].w + ECART * 2; });
+  let yr = 0;
+  racines.forEach(k => { mesurer(k); placer(k, 0, yr); yr += H[k] + EV * 2; });
 
   /* 3) Positions finales (les cases déplacées à la souris gardent leur place) et dessin des cases */
   noeuds.forEach(n => {
@@ -1136,43 +1111,31 @@ function construireExigences() {
 
   /* 4) Liens à angles droits */
   const f = v => Math.round(v * 10) / 10;
-  const haut = k => parKey[k].y - parKey[k].h / 2, bas = k => parKey[k].y + parKey[k].h / 2;
+  const gauche = k => parKey[k].x - W / 2;
   let traits = '';
-  Object.keys(orga).forEach(k => {
-    const P = parKey[k], o = orga[k]; if (!o.creneaux.length) return;
-    const arbres = o.creneaux.filter(c => c.type === 'arbre').map(c => c.k);
-    const comp = arbres.filter(c => !raffine(c)), ref = arbres.filter(raffine);
-    const bloc = (o.creneaux.find(c => c.type === 'bloc') || {}).ks || [];
-    const yb = bas(k);
-    const tops = [...arbres, ...bloc].map(haut);
-    const yBarre = f(yb + Math.max(14, (Math.min(...tops) - yb) / 2));   // hauteur de la barre horizontale
-    const decal = ref.length && (comp.length || bloc.length) ? 26 : 0;
-    // Composition : un seul symbole ⊕ sous l'exigence mère, puis peigne vers les filles
-    if (comp.length || bloc.length) {
-      const ax = f(P.x - decal), xs = [ax];
-      let d = '';
-      comp.forEach(c => { xs.push(parKey[c].x); d += `M${f(parKey[c].x)} ${yBarre}V${f(haut(c))}`; });
-      if (bloc.length) {
-        // Tronc vertical entre les deux colonnes de feuilles, branches horizontales vers chaque case
-        const bords = bloc.map(r => cote[r] === 'g' ? parKey[r].x + W / 2 + TRONC : parKey[r].x - W / 2 - TRONC);
-        const tx = f(bords.reduce((s, v) => s + v, 0) / bords.length);
-        xs.push(tx);
-        d += `M${tx} ${yBarre}V${f(Math.max(...bloc.map(r => parKey[r].y)))}`;
-        bloc.forEach(r => { d += `M${tx} ${f(parKey[r].y)}H${f(cote[r] === 'g' ? parKey[r].x + W / 2 : parKey[r].x - W / 2)}`; });
-      }
-      d = `M${ax} ${f(yb + 14)}V${yBarre}M${f(Math.min(...xs))} ${yBarre}H${f(Math.max(...xs))}` + d;
+  Object.keys(enfants).forEach(k => {
+    const ks = enfants[k]; if (!ks.length) return;
+    const P = parKey[k], xd = P.x + W / 2;                   // bord droit de l'exigence mère
+    const comp = ks.filter(c => !raffine(c)), ref = ks.filter(raffine);
+    const xMin = Math.min(...ks.map(gauche));
+    const xBarre = f(xd + Math.max(22, (xMin - xd) / 2));   // position de la barre verticale
+    const deux = comp.length && ref.length;
+    // Composition : un seul symbole ⊕ à droite de l'exigence mère, puis une branche par fille
+    if (comp.length) {
+      const ya = f(P.y - (deux ? 10 : 0)), ys = [ya, ...comp.map(c => parKey[c].y)];
+      let d = `M${f(xd + 14)} ${ya}H${xBarre}M${xBarre} ${f(Math.min(...ys))}V${f(Math.max(...ys))}`;
+      comp.forEach(c => { d += `M${xBarre} ${f(parKey[c].y)}H${f(gauche(c))}`; });
       traits += `<path class="dg-trait" d="${d}"/>
-        <circle class="dg-vide" cx="${ax}" cy="${f(yb + 7)}" r="7"/><path class="dg-trait" d="M${ax - 7} ${f(yb + 7)}H${ax + 7}M${ax} ${f(yb)}V${f(yb + 14)}"/>`;
+        <circle class="dg-vide" cx="${f(xd + 7)}" cy="${ya}" r="7"/><path class="dg-trait" d="M${f(xd)} ${ya}H${f(xd + 14)}M${f(xd + 7)} ${f(ya - 7)}V${f(ya + 7)}"/>`;
     }
     // Raffinement : trait pointillé, flèche ouverte vers l'exigence mère, stéréotype «refine»
     if (ref.length) {
-      const ax = f(P.x + decal), yR = f(yBarre + (decal ? 12 : 0));
-      const xs = [ax, ...ref.map(c => parKey[c].x)];
-      let d = `M${ax} ${f(yb)}V${yR}M${f(Math.min(...xs))} ${yR}H${f(Math.max(...xs))}`;
-      ref.forEach(c => { d += `M${f(parKey[c].x)} ${yR}V${f(haut(c))}`; });
+      const ya = f(P.y + (deux ? 10 : 0)), xb = f(deux ? xBarre + 12 : xBarre), ys = [ya, ...ref.map(c => parKey[c].y)];
+      let d = `M${f(xd)} ${ya}H${xb}M${xb} ${f(Math.min(...ys))}V${f(Math.max(...ys))}`;
+      ref.forEach(c => { d += `M${xb} ${f(parKey[c].y)}H${f(gauche(c))}`; });
       traits += `<path class="dg-trait pointille" d="${d}"/>
-        <path class="dg-trait" d="M${ax - 6} ${f(yb + 11)}L${ax} ${f(yb)}L${ax + 6} ${f(yb + 11)}"/>` +
-        etiquette('«refine»', ax + 30, f((yb + yR) / 2 + 2));
+        <path class="dg-trait" d="M${f(xd + 11)} ${f(ya - 6)}L${f(xd)} ${ya}L${f(xd + 11)} ${f(ya + 6)}"/>` +
+        ref.map(c => etiquette('«refine»', gauche(c) - 34, parKey[c].y - 10)).join('');   // étiquette juste avant la case fille
     }
   });
   return { noeuds, liens: [], fond: traits, cadre: 'req [Exigences] ' + (projet.fiche.intitule || 'Système'),
