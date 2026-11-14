@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="H. Hammadou">
+<!-- Tablette / installation sur l'écran d'accueil -->
+<meta name="theme-color" content="#1d5fc4">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Projets STI2D">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="copyright" content="© 2026 H. Hammadou – Tous droits réservés">
+<title>Projets STI2D</title>
+<!--
+  Tableau de bord des projets STI2D
+  ---------------------------------
+  © 2026 H. Hammadou – Tous droits réservés.
+  Toute reproduction, modification ou redistribution sans l'accord de l'auteur est interdite.
+
+  Application autonome (un seul fichier HTML, aucune dépendance externe).
+  - Fonctionne hors ligne : il suffit d'ouvrir ce fichier dans un navigateur.
+  - Peut aussi être servie sur le réseau du lycée par « serveur.py ».
+  - Aucune donnée n'est envoyée sur Internet : tout reste dans le navigateur
+    (localStorage) ou dans les fichiers JSON exportés.
+-->
+<style>
+/* =========================================================
+   1. THÈME (variables de couleurs, mode clair / sombre)
+   ========================================================= */
+:root{
+  --bg:#f3f5f9; --surface:#ffffff; --surface2:#eef1f6; --text:#1a2230; --muted:#5a6578;
+  --border:#d3dae5; --primary:#1d5fc4; --primary-ink:#ffffff; --primary-soft:#e2ebfa;
+  --danger:#c0262d; --danger-soft:#fde9e9; --ok:#23793a; --ok-soft:#e3f3e6; --warn:#9a5a00; --warn-soft:#fff2d9;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 16px rgba(20,30,50,.06);
+  /* Couleurs des diagrammes */
+  --dg-bg:#ffffff; --dg-stroke:#283140; --dg-text:#161d28; --dg-muted:#556072; --dg-fill:#f8fafd;
+  --dg-head:#e2ebfa; --dg-frame:#fcfdfe; --dg-grid:#e3e8ef;
+  --dg-utilisateur:#e2ebfa; --dg-energie:#fff0d1; --dg-environnement:#e0f2e3; --dg-systeme:#eee5f8;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0f141b; --surface:#18202a; --surface2:#212a36; --text:#e5eaf1; --muted:#98a4b6;
+  --border:#313b49; --primary:#6ea6ff; --primary-ink:#0a1220; --primary-soft:#1c2c45;
+  --danger:#ff7d7d; --danger-soft:#3a1d20; --ok:#72cf7f; --ok-soft:#163021; --warn:#ffbf5e; --warn-soft:#382a12;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+  --dg-bg:#18202a; --dg-stroke:#b9c4d4; --dg-text:#e5eaf1; --dg-muted:#a3afc0; --dg-fill:#1f2833;
+  --dg-head:#24354f; --dg-frame:#1a222d; --dg-grid:#2a3441;
+  --dg-utilisateur:#22344f; --dg-energie:#3d3018; --dg-environnement:#1d3626; --dg-systeme:#33274a;
+  color-scheme:dark;
+}
+
+/* =========================================================
+   2. MISE EN PAGE GÉNÉRALE
+   ========================================================= */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,Arial,sans-serif}
+h1,h2,h3{line-height:1.25;margin:0 0 .5em}
+h1{font-size:1.7rem} h2{font-size:1.25rem} h3{font-size:1.05rem}
+a{color:var(--primary)}
+button,input,select,textarea{font:inherit;color:inherit}
+.cache{display:none!important}
+
+/* Barre du haut */
+.barre{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:.5rem;padding:.55rem 1rem;flex-wrap:wrap}
+.barre .logo{font-weight:800;letter-spacing:.02em;color:var(--primary);cursor:pointer;white-space:nowrap}
+.barre .titre-projet{flex:1;min-width:8rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barre .titre-projet small{display:inline-block;margin-left:.5rem;color:var(--muted);font-weight:500}
+.etat-sauvegarde{color:var(--muted);font-size:.82rem;white-space:nowrap}
+.barre .actions{display:flex;gap:.4rem;flex-wrap:wrap}
+
+/* Boutons */
+.btn{display:inline-flex;align-items:center;gap:.35rem;border:1px solid var(--primary);background:var(--primary);color:var(--primary-ink);
+  padding:.45rem .85rem;border-radius:8px;cursor:pointer;font-weight:600;font-size:.92rem;text-decoration:none;white-space:nowrap}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn.secondaire{background:var(--surface);color:var(--primary);border-color:var(--border)}
+.btn.secondaire:hover{background:var(--primary-soft)}
+.btn.discret{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.discret:hover{background:var(--surface2);color:var(--text)}
+.btn.grand{padding:.7rem 1.1rem;font-size:1rem}
+.ico{border:1px solid var(--border);background:var(--surface);border-radius:6px;width:1.9rem;height:1.9rem;cursor:pointer;color:var(--muted);padding:0}
+.ico:hover{color:var(--text);background:var(--surface2)}
+.ico.danger:hover{color:var(--danger);background:var(--danger-soft)}
+.ico:disabled{opacity:.35;cursor:default}
+/* Écrans tactiles (tablettes) : zones à toucher plus grandes */
+@media (pointer:coarse){
+  .ico{width:2.4rem;height:2.4rem;font-size:1rem}
+  .btn{padding:.6rem 1rem}
+  .puce{padding:.35rem .8rem}
+  input[type=text],input[type=number],select,textarea{font-size:16px;padding:.55rem .65rem} /* 16 px : évite le zoom auto d'iOS */
+}
+
+/* Onglets */
+.onglets{display:flex;gap:.25rem;padding:.5rem 1rem 0;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;position:sticky;top:var(--h-barre,52px);z-index:19}
+.onglet{border:0;background:transparent;padding:.55rem .85rem;border-bottom:3px solid transparent;cursor:pointer;color:var(--muted);font-weight:600;white-space:nowrap}
+.onglet:hover{color:var(--text)}
+.onglet.actif{color:var(--primary);border-bottom-color:var(--primary)}
+.onglet .pastille{display:inline-block;margin-left:.3rem;color:var(--danger)}
+
+main{max-width:1400px;margin:0 auto;padding:1.2rem 1rem 4rem}
+.carte{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.2rem;box-shadow:var(--shadow);margin-bottom:1rem}
+.carte > h2:first-child,.carte > h3:first-child{margin-top:0}
+.aide{color:var(--muted);font-size:.88rem}
+.intro{color:var(--muted);margin:-.2rem 0 1rem;max-width:80ch}
+.grille2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:1rem;align-items:start}
+.colle{position:sticky;top:calc(var(--h-barre,52px) + 56px)}
+@media (max-width:980px){.grille2{grid-template-columns:1fr}.colle{position:static}}
+
+/* Formulaires */
+.champ{margin-bottom:.9rem}
+.champ label{display:block;font-weight:600;margin-bottom:.25rem}
+.champ .aide{display:block;margin:-.1rem 0 .3rem}
+input[type=text],input[type=number],select,textarea{width:100%;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:.45rem .6rem}
+textarea{min-height:4.2rem;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:var(--primary)}
+.ligne-champs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 1rem}
+.compteur{float:right;font-weight:400;color:var(--muted);font-size:.8rem}
+.compteur.trop{color:var(--danger);font-weight:600}
+
+/* Éditeur de listes (tableaux modifiables) */
+.liste{overflow-x:auto;margin-bottom:.6rem}
+table.tl{width:100%;border-collapse:collapse}
+table.tl th{text-align:left;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:.3rem .35rem;border-bottom:1px solid var(--border)}
+table.tl td{padding:.3rem .35rem;border-bottom:1px solid var(--border);vertical-align:top}
+table.tl td.num,table.tl th.num{width:1.8rem;color:var(--muted);text-align:center;padding-top:.75rem}
+table.tl td.act{white-space:nowrap;width:1%}
+table.tl td.vide{color:var(--muted);text-align:center;font-style:italic;padding:1rem}
+table.tl textarea{min-height:2.6rem}
+.puces{display:flex;flex-wrap:wrap;gap:.3rem}
+.puce{white-space:nowrap;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:.15rem .6rem;font-size:.83rem;cursor:pointer}
+.puce.on{background:var(--primary-soft);color:var(--primary);border-color:var(--primary);font-weight:600}
+@media (max-width:700px){
+  table.tl thead{display:none}
+  table.tl tr{display:block;border:1px solid var(--border);border-radius:10px;margin-bottom:.6rem;padding:.3rem}
+  table.tl td{display:block;border:0}
+  table.tl td[data-label]::before{content:attr(data-label);display:block;font-size:.75rem;color:var(--muted);text-transform:uppercase}
+  table.tl td.num{display:none}
+  table.tl td.act{text-align:right}
+}
+
+/* Alertes */
+.alerte{border-radius:10px;padding:.7rem .9rem;margin-bottom:.8rem;border:1px solid}
+.alerte.danger{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
+.alerte.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.alerte.info{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.alerte.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+
+/* Accueil */
+.accueil{max-width:1050px;margin:0 auto;padding:2rem 1rem 4rem}
+.accueil header{text-align:center;margin-bottom:1.6rem}
+.accueil header p{color:var(--muted);max-width:62ch;margin:.3rem auto 0}
+.niveaux{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem}
+.niveau{display:flex;flex-direction:column;gap:.7rem}
+.niveau .tag{display:inline-block;font-size:.8rem;font-weight:700;padding:.15rem .55rem;border-radius:999px;background:var(--primary-soft);color:var(--primary)}
+.niveau ul{margin:0;padding-left:1.2rem;color:var(--muted);font-size:.92rem}
+.niveau .boutons{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:auto}
+.reprise{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;border-color:var(--primary)}
+.reprise div{flex:1;min-width:12rem}
+
+/* Diagrammes à l'écran */
+.diag-carte .diag-barre{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem}
+.diag-carte .diag-barre h3{margin:0;flex:1}
+svg.diagramme{width:100%;height:auto;max-height:78vh;display:block;background:var(--dg-bg);border:1px solid var(--border);border-radius:10px;overflow:visible;user-select:none;-webkit-user-select:none}
+svg.diagramme .dg-n{cursor:grab;touch-action:none}
+svg.diagramme .dg-n.glisse{cursor:grabbing}
+svg.diagramme .dg-n:hover .dg-forme{stroke-width:2.2}
+
+/* Classes SVG communes (écran, aperçu et impression) */
+.dg-forme{fill:var(--dg-fill);stroke:var(--dg-stroke);stroke-width:1.4}
+.dg-tete{fill:var(--dg-head);stroke:var(--dg-stroke);stroke-width:1.4}
+.dg-t{fill:var(--dg-text);font:12px system-ui,Arial,sans-serif}
+.dg-t.gras{font-weight:700}
+.dg-t.petit{font-size:10.5px;fill:var(--dg-muted)}
+.dg-t.titre{font-size:12px;font-weight:700}
+.dg-trait{stroke:var(--dg-stroke);stroke-width:1.3;fill:none}
+.dg-trait.pointille{stroke-dasharray:6 4}
+.dg-plein{fill:var(--dg-stroke);stroke:none}
+.dg-vide{fill:var(--dg-bg);stroke:var(--dg-stroke);stroke-width:1.3}
+.dg-etiq{fill:var(--dg-bg);stroke:none;opacity:.92}
+.dg-cadre{fill:none;stroke:var(--dg-stroke);stroke-width:1}
+.dg-cadre-tag{fill:var(--dg-bg);stroke:var(--dg-stroke);stroke-width:1}
+.dg-systeme{fill:var(--dg-frame);stroke:var(--dg-stroke);stroke-width:1.5}
+.dg-grille{stroke:var(--dg-grid);stroke-width:1}
+.dg-placeholder{fill:var(--dg-muted);font:italic 14px system-ui,Arial,sans-serif}
+.cat-utilisateur{fill:var(--dg-utilisateur)} .cat-energie{fill:var(--dg-energie)}
+.cat-environnement{fill:var(--dg-environnement)} .cat-systeme{fill:var(--dg-systeme)}
+
+/* Planning */
+.bilan{display:grid;gap:.5rem}
+.bilan-ligne{display:grid;grid-template-columns:minmax(7rem,12rem) 1fr 6.5rem;gap:.6rem;align-items:center}
+.jauge{height:.8rem;border-radius:999px;background:var(--surface2);overflow:hidden;position:relative}
+.jauge span{display:block;height:100%;border-radius:999px;background:var(--ok)}
+.jauge span.sous{background:var(--primary)} .jauge span.trop{background:var(--danger)}
+.bilan-ligne b.trop{color:var(--danger)}
+svg.gantt{width:100%;height:auto;display:block;background:var(--dg-bg);border:1px solid var(--border);border-radius:10px}
+.defile{overflow-x:auto}
+
+/* Bandeau de notification (toast) */
+.toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:.6rem 1rem;border-radius:10px;
+  box-shadow:var(--shadow);z-index:100;max-width:90vw;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.visible{opacity:1}
+.credit{text-align:center;color:var(--muted);font-size:.8rem;margin:1.5rem 0 0}
+
+/* =========================================================
+   3. FEUILLES A4 (aperçu à l'écran + impression PDF)
+   ========================================================= */
+.apercu{overflow:auto;background:var(--surface2);border-radius:12px;padding:1rem;border:1px solid var(--border)}
+.apercu .feuille{margin:0 auto 1rem;box-shadow:0 2px 12px rgba(0,0,0,.18)}
+.feuille{
+  /* La feuille est toujours en clair, même en mode sombre */
+  --dg-bg:#ffffff; --dg-stroke:#1d232c; --dg-text:#111; --dg-muted:#444; --dg-fill:#ffffff; --dg-head:#e6edf8;
+  --dg-frame:#ffffff; --dg-grid:#dfe3ea; --dg-utilisateur:#e6edf8; --dg-energie:#fff1d4; --dg-environnement:#e3f3e6; --dg-systeme:#f0e8f9;
+  width:210mm;height:296mm;padding:9mm 11mm 8mm;background:#fff;color:#111;display:flex;flex-direction:column;overflow:hidden;
+  font:9.6pt/1.35 Arial,"Liberation Sans",Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.feuille *{color:inherit}
+.f-entete{display:flex;align-items:stretch;border:1.5px solid #111;margin-bottom:3mm}
+.f-entete .f-logo{width:34mm;border-right:1.5px solid #111;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;font-size:9pt;padding:1.5mm;background:#e6edf8}
+.f-entete .f-titre{flex:1;text-align:center;padding:2mm;display:flex;flex-direction:column;justify-content:center}
+.f-entete .f-titre b{font-size:12.5pt;display:block}
+.f-entete .f-titre span{font-size:9pt}
+.f-entete .f-page{width:22mm;border-left:1.5px solid #111;display:flex;align-items:center;justify-content:center;font-size:8.5pt}
+.f-tab{width:100%;border-collapse:collapse;margin-bottom:2.5mm}
+.f-tab th,.f-tab td{border:1px solid #111;padding:1.2mm 1.8mm;vertical-align:top;text-align:left}
+.f-tab th{background:#e6edf8;font-weight:700;width:42mm}
+.f-tab thead th{width:auto;text-align:center}
+.f-tab td.c{text-align:center}
+.f-bloc{border:1px solid #111;margin-bottom:2.5mm}
+.f-bloc > .f-lab{background:#e6edf8;font-weight:700;padding:1mm 1.8mm;border-bottom:1px solid #111}
+.f-bloc > .f-val{padding:1.4mm 1.8mm;white-space:pre-wrap;min-height:9mm}
+.f-diag{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
+.f-diag > .f-val{flex:1 1 0;min-height:0;display:flex;padding:1.5mm}
+.f-diag svg{flex:1 1 0;width:100%;height:100%;min-height:0}
+.f-vide{color:#777;font-style:italic}
+.f-pied{margin-top:auto;padding-top:1.5mm;font-size:7.5pt;color:#555;display:flex;justify-content:space-between}
+.f-x{font-weight:700;text-align:center}
+#impression{display:none}
+
+@media print{
+  @page{size:A4 portrait;margin:0}
+  html,body{background:#fff!important}
+  #app,.toast{display:none!important}
+  #impression{display:block}
+  .feuille{margin:0;box-shadow:none;break-after:page;page-break-after:always}
+  .feuille:last-child{break-after:auto;page-break-after:auto}
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="impression"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fichier-json" accept=".json,application/json" class="cache">
+
+<script>
+'use strict';
+/* =====================================================================
+   1. CONSTANTES ET RÉFÉRENTIELS
+   ===================================================================== */
+const CREDIT = '© 2026 H. Hammadou – Tous droits réservés'; // mention de propriété affichée dans l'application
+const APP_ID = 'sti2d-projets';          // identifiant écrit dans les fichiers JSON
+const VERSION_FORMAT = 1;                 // version du format de fichier
+const CLE_STOCKAGE = 'sti2d-projet-courant';
+const CLE_THEME = 'sti2d-theme';
+const MAX_ELEVES = 5;
+
+/* Paramètres propres à chaque niveau */
+const NIVEAUX = {
+  premiere:  { label:'Première STI2D', court:'Première', heures:36, hps:3, semaines:12, modele:'Fiche de définition du projet (modèle « Serre automatique »)' },
+  terminale: { label:'Terminale 2I2D', court:'Terminale', heures:72, hps:4, semaines:18, modele:'Fiche de présentation du projet de 2I2D (v3, 3 pages)' }
+};
+const DOMAINES = ['Énergie', 'Information', 'Matière'];
+const SPECIALITES = ['AC', 'EE', 'ITEC', 'SIN'];
+const SPECIALITES_NOMS = {
+  AC:'Architecture et construction', EE:'Énergies et environnement',
+  ITEC:'Innovation technologique et éco-conception', SIN:"Systèmes d'information et numérique"
+};
+/* Liste des thématiques proposées en Terminale (modifiable ici si le modèle officiel évolue).
+   La dernière entrée « Autre » fait apparaître un champ libre. */
+const THEMATIQUES = [
+  'Habitat et ouvrages, cadre de vie',
+  'Mobilité et transports',
+  'Énergie et transition écologique',
+  'Santé et bien-être',
+  'Sport et loisirs',
+  'Agriculture et alimentation',
+  'Industrie du futur',
+  'Communication et objets connectés',
+  'Autre'
+];
+/* Catégories des éléments extérieurs du diagramme de contexte */
+const CATEGORIES_CTX = { utilisateur:'Utilisateur', energie:'Énergie', environnement:'Environnement', systeme:'Autre système' };
+/* Couleurs des responsables dans le diagramme de Gantt (la dernière = toute l'équipe) */
+const COULEURS = ['#2f6fd0', '#d9722f', '#2f9c6a', '#9a55c9', '#c9414f', '#6c7a8c'];
+
+/* =====================================================================
+   2. OUTILS GÉNÉRAUX
+   ===================================================================== */
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = (s, r = document) => r.querySelector(s);
+const nombre = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
+const arrondi = n => Math.round(n * 10) / 10;
+const fmtH = n => String(arrondi(n)).replace('.', ',') + ' h';
+
+/* Petit message temporaire en bas de l'écran */
+function notifier(msg, duree = 2800) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('visible');
+  clearTimeout(notifier._t); notifier._t = setTimeout(() => t.classList.remove('visible'), duree);
+}
+
+/* Découpe un texte en lignes d'au plus « max » caractères (pour les SVG) */
+function couper(texte, max) {
+  const lignes = [];
+  String(texte ?? '').split(/\n/).forEach(par => {
+    let ligne = '';
+    par.split(/\s+/).filter(Boolean).forEach(mot => {
+      while (mot.length > max) {                    // mot trop long : on le coupe
+        if (ligne) { lignes.push(ligne); ligne = ''; }
+        lignes.push(mot.slice(0, max - 1) + '-'); mot = mot.slice(max - 1);
+      }
+      if (!ligne) ligne = mot;
+      else if ((ligne + ' ' + mot).length <= max) ligne += ' ' + mot;
+      else { lignes.push(ligne); ligne = mot; }
+    });
+    if (ligne) lignes.push(ligne);
+  });
+  return lignes.length ? lignes : [''];
+}
+
+/* Nom de fichier sans accents ni caractères spéciaux */
+function slug(t) {
+  return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'projet';
+}
+
+/* =====================================================================
+   3. MODÈLE DE DONNÉES : projet vide, normalisation, exemples
+   ===================================================================== */
+let projet = null;            // projet en cours d'édition
+let ongletActif = 'fiche';    // onglet affiché
+let serveurDisponible = false; // vrai si l'appli est servie par serveur.py
+
+function nouvelEleve(niveau) {
+  return { uid: uid(), nom: '', tache: '', domaine: 'Énergie', specialite: niveau === 'terminale' ? 'SIN' : '' };
+}
+
+function projetVide(niveau) {
+  const N = NIVEAUX[niveau];
+  return {
+    app: APP_ID, version: VERSION_FORMAT, niveau, modifie: Date.now(),
+    fiche: { intitule:'', lycee:'', enseignant:'', theme:'', besoin:'', finalite:'', probleme:'', production:'',
+             session:'', uai:'', thematique:'', thematiqueAutre:'', professeurs:'', stem:'' },
+    eleves: [nouvelEleve(niveau)],
+    exigences: [],      // {uid, id, texte, critere, niveau, relation (uid parent), typeRel}
+    acteurs: [],        // {uid, nom}
+    cas: [],            // {uid, nom, acteurs:[uid]}
+    contexte: [],       // {uid, nom, categorie, interaction}
+    taches: [],         // {uid, nom, responsable (uid élève | 'equipe' | ''), duree, semaine}
+    planning: { hps: N.hps, semaines: N.semaines },
+    positions: { exigences:{}, cas:{}, contexte:{} },  // positions déplacées à la souris
+    options: { diagrammes: true, planning: false, dispoEx: 'auto' }, // options d'impression et de disposition
+    envoi: { equipe: '' }                                // nom d'équipe pour le mode serveur
+  };
+}
+
+/* Complète un projet importé avec les champs manquants (anciens fichiers, fichiers incomplets) */
+function normaliser(p) {
+  if (!p || typeof p !== 'object' || !NIVEAUX[p.niveau]) throw new Error('Fichier non reconnu : niveau absent ou invalide.');
+  const base = projetVide(p.niveau);
+  const r = Object.assign(base, p);
+  r.fiche = Object.assign(projetVide(p.niveau).fiche, p.fiche || {});
+  r.planning = Object.assign(base.planning, p.planning || {});
+  r.positions = Object.assign({ exigences:{}, cas:{}, contexte:{} }, p.positions || {});
+  r.options = Object.assign({ diagrammes:true, planning:false, dispoEx:'auto' }, p.options || {});
+  r.envoi = Object.assign({ equipe:'' }, p.envoi || {});
+  ['eleves','exigences','acteurs','cas','contexte','taches'].forEach(k => {
+    r[k] = Array.isArray(p[k]) ? p[k].filter(x => x && typeof x === 'object') : base[k];
+    r[k].forEach(x => { if (!x.uid) x.uid = uid(); });
+  });
+  r.cas.forEach(c => { if (!Array.isArray(c.acteurs)) c.acteurs = []; });
+  if (!r.eleves.length) r.eleves = [nouvelEleve(r.niveau)];
+  r.app = APP_ID; r.version = VERSION_FORMAT;
+  return r;
+}
+
+/* Fabrique une liste d'objets avec uid à partir d'un tableau simple */
+const avecUid = tab => tab.map(o => Object.assign({ uid: uid() }, o));
+
+/* ---------- Exemple Première : Serre automatique ---------- */
+function exemplePremiere() {
+  const p = projetVide('premiere');
+  p.fiche = Object.assign(p.fiche, {
+    intitule: 'Serre automatique',
+    lycee: 'Lycée (exemple)',
+    enseignant: 'Mme Martin',
+    theme: 'Agriculture urbaine et alimentation durable',
+    besoin: "Des particuliers souhaitent faire pousser des plants fragiles (semis, aromatiques) toute l'année, chez eux, sans devoir surveiller en permanence la température, l'humidité et la lumière.",
+    finalite: "Maintenir automatiquement des conditions de culture favorables dans une petite serre, pour obtenir des plants sains avec un minimum d'intervention et d'énergie.",
+    probleme: "Comment réguler automatiquement la température, l'hygrométrie et l'éclairage d'une serre domestique tout en limitant sa consommation d'énergie ?",
+    production: "Une maquette fonctionnelle de serre (environ 80 × 50 × 60 cm) équipée de la régulation de température, de la brumisation, de l'éclairage d'appoint et d'un écran affichant les mesures, accompagnée du dossier de conception."
+  });
+  p.eleves = avecUid([
+    { nom:'Lina',  domaine:'Énergie',     tache:'Régulation de la température : chauffage d’appoint et ventilation.' },
+    { nom:'Hugo',  domaine:'Information', tache:'Mesure et régulation de l’hygrométrie : capteur d’humidité et brumisation.' },
+    { nom:'Inès',  domaine:'Énergie',     tache:'Éclairage d’appoint piloté selon la luminosité et la durée du jour.' },
+    { nom:'Noah',  domaine:'Matière',     tache:'Conception de la structure de la serre et des supports de culture (bacs, étagères).' },
+    { nom:'Jade',  domaine:'Information', tache:'Supervision : affichage des mesures et réglage des consignes.' }
+  ]);
+  const [lina, hugo, ines, noah, jade] = p.eleves.map(e => e.uid);
+  // Exigences
+  const e1 = uid(), e11 = uid();
+  p.exigences = [
+    { uid:e1, id:'1', texte:'La serre doit maintenir des conditions de culture favorables aux plants', critere:'', niveau:'', relation:'', typeRel:'composition' },
+    { uid:e11, id:'1.1', texte:'Réguler la température de l’air', critere:'Température', niveau:'18 °C à 26 °C (± 2 °C)', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.2', texte:'Réguler l’hygrométrie', critere:'Humidité relative', niveau:'60 % à 80 %', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.3', texte:'Assurer un éclairage suffisant', critere:'Durée d’éclairement', niveau:'12 h par jour minimum', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.4', texte:'Supporter les plants', critere:'Nombre de bacs / charge', niveau:'6 bacs de 5 kg', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.5', texte:'Informer l’utilisateur', critere:'Rafraîchissement de l’affichage', niveau:'toutes les 10 s', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.1.1', texte:'Mesurer la température de l’air', critere:'Précision', niveau:'± 0,5 °C', relation:e11, typeRel:'raffinement' }
+  ];
+  // Cas d'utilisation
+  const jardinier = uid(), tech = uid();
+  p.acteurs = [{ uid:jardinier, nom:'Jardinier' }, { uid:tech, nom:'Technicien de maintenance' }];
+  p.cas = avecUid([
+    { nom:'Cultiver des plants dans de bonnes conditions', acteurs:[jardinier] },
+    { nom:'Régler les consignes', acteurs:[jardinier] },
+    { nom:'Consulter les mesures', acteurs:[jardinier, tech] },
+    { nom:'Remplir la réserve d’eau', acteurs:[jardinier] },
+    { nom:'Assurer la maintenance', acteurs:[tech] }
+  ]);
+  // Contexte
+  p.contexte = avecUid([
+    { nom:'Jardinier', categorie:'utilisateur', interaction:'règle, consulte' },
+    { nom:'Plants', categorie:'environnement', interaction:'sont cultivés' },
+    { nom:'Réseau électrique 230 V', categorie:'energie', interaction:'alimente' },
+    { nom:'Air ambiant', categorie:'environnement', interaction:'température, humidité' },
+    { nom:'Lumière du soleil', categorie:'environnement', interaction:'éclaire, chauffe' },
+    { nom:'Réserve d’eau', categorie:'systeme', interaction:'fournit l’eau' },
+    { nom:'Smartphone', categorie:'systeme', interaction:'affiche les mesures' }
+  ]);
+  // Planning (12 semaines de 3 h ; 36 h par élève)
+  const t = [
+    ['Analyse du besoin et diagrammes SysML', 'equipe', 3, 1]
+  ];
+  const perso = {
+    [lina]: ['Étude des solutions de chauffage et ventilation', 'Réalisation de la régulation de température', 'Essais et mesures de température'],
+    [hugo]: ['Étude des capteurs d’humidité et de la brumisation', 'Réalisation de la régulation d’hygrométrie', 'Essais de la brumisation'],
+    [ines]: ['Étude de l’éclairage LED et du capteur de luminosité', 'Réalisation de l’éclairage piloté', 'Mesures d’éclairement'],
+    [noah]: ['Croquis et modélisation 3D de la structure', 'Fabrication de la structure et des supports', 'Assemblage et essais de charge'],
+    [jade]: ['Étude de l’affichage et des consignes', 'Programmation de la supervision', 'Essais de l’interface']
+  };
+  Object.entries(perso).forEach(([u, noms]) => { t.push([noms[0], u, 6, 2]); t.push([noms[1], u, 9, 4]); });
+  t.push(['Revue de projet', 'equipe', 3, 7]);
+  Object.entries(perso).forEach(([u, noms]) => t.push([noms[2], u, 6, 8]));
+  t.push(['Intégration et essais de la serre complète', 'equipe', 6, 10]);
+  t.push(['Préparation de la présentation finale', 'equipe', 3, 12]);
+  p.taches = t.map(([nom, responsable, duree, semaine]) => ({ uid:uid(), nom, responsable, duree, semaine }));
+  return p;
+}
+
+/* ---------- Exemple Terminale : Maison autonome à énergie optimisée ---------- */
+function exempleTerminale() {
+  const p = projetVide('terminale');
+  p.fiche = Object.assign(p.fiche, {
+    session: '2027',
+    uai: '0599999Z',
+    intitule: 'Maison autonome à énergie optimisée',
+    thematique: 'Habitat et ouvrages, cadre de vie',
+    professeurs: 'M. Durand (ITEC), Mme Petit (SIN), M. Leroy (AC)',
+    besoin: "Une famille de trois personnes, dont une personne âgée à mobilité réduite et un enfant de 4 ans, souhaite vivre dans une maison individuelle autonome en énergie, confortable, sûre et accessible à tous ses occupants.",
+    finalite: "Concevoir un habitat qui produit, stocke et gère sa propre énergie tout en garantissant le confort, l'accessibilité et la sécurité de chacun : une réponse concrète aux enjeux de l'habitat durable et du maintien à domicile.",
+    probleme: "Comment optimiser la production, le stockage et la consommation d'énergie de la maison tout en assurant l'autonomie de la personne à mobilité réduite et la sécurité du jeune enfant ?",
+    production: "Une maquette de la maison au 1/20 intégrant : un prototype de volet roulant motorisé alimenté par panneau solaire, une porte d'entrée à ouverture automatique adaptée au fauteuil roulant, une supervision domotique (production / consommation, détection de chute, sécurisation des accès) et le dossier de conception de l'enveloppe bioclimatique.",
+    stem: "Physique-chimie : puissance et énergie électriques, rendement d'un panneau photovoltaïque, stockage électrochimique, transferts thermiques à travers les parois.\nMathématiques : modélisation de la production solaire sur une journée (fonctions), statistiques sur les relevés de consommation, trigonométrie pour l'inclinaison des panneaux."
+  });
+  p.eleves = avecUid([
+    { nom:'Camille', specialite:'AC',   tache:"Concevoir l'enveloppe bioclimatique (orientation, isolation, ouvertures) et dimensionner la rampe d'accès PMR selon la réglementation." },
+    { nom:'Yanis',   specialite:'ITEC', tache:'Concevoir et prototyper le volet roulant motorisé alimenté par panneau solaire (mécanisme, éco-conception, impression 3D).' },
+    { nom:'Sarah',   specialite:'ITEC', tache:"Concevoir l'ouverture automatique de la porte d'entrée adaptée au fauteuil roulant, avec sécurité anti-pincement pour l'enfant." },
+    { nom:'Mehdi',   specialite:'SIN',  tache:"Développer la supervision domotique : suivi production / consommation, détection de chute et alerte, verrouillage des accès dangereux pour l'enfant." }
+  ]);
+  const [camille, yanis, sarah, mehdi] = p.eleves.map(e => e.uid);
+  const e1 = uid(), e11 = uid(), e14 = uid();
+  p.exigences = [
+    { uid:e1,  id:'1',     texte:'La maison doit couvrir ses besoins en énergie tout en assurant confort, accessibilité et sécurité', critere:'', niveau:'', relation:'', typeRel:'composition' },
+    { uid:e11, id:'1.1',   texte:'Produire et stocker l’énergie nécessaire', critere:'Taux de couverture des besoins', niveau:'≥ 100 % sur l’année', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.1.1', texte:'Produire de l’électricité photovoltaïque', critere:'Puissance crête', niveau:'6 kWc', relation:e11, typeRel:'composition' },
+    { uid:uid(), id:'1.1.2', texte:'Stocker l’énergie produite', critere:'Capacité utile', niveau:'10 kWh', relation:e11, typeRel:'composition' },
+    { uid:uid(), id:'1.2',   texte:'Limiter les besoins de chauffage', critere:'Besoin de chauffage', niveau:'≤ 15 kWh/m²/an', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.3',   texte:'Permettre l’accès en fauteuil roulant', critere:'Pente / largeur de passage', niveau:'≤ 5 % / ≥ 0,90 m', relation:e1, typeRel:'composition' },
+    { uid:e14, id:'1.4',   texte:'Protéger l’enfant et la personne âgée', critere:'Délai d’alerte après une chute', niveau:'< 30 s', relation:e1, typeRel:'composition' },
+    { uid:uid(), id:'1.4.1', texte:'Détecter une chute de la personne âgée', critere:'Taux de détection', niveau:'≥ 90 %', relation:e14, typeRel:'raffinement' }
+  ];
+  const pmr = uid(), parents = uid(), enfant = uid(), urgences = uid();
+  p.acteurs = [{ uid:pmr, nom:'Personne âgée (PMR)' }, { uid:parents, nom:'Parents' }, { uid:enfant, nom:'Enfant de 4 ans' }, { uid:urgences, nom:'Services d’urgence' }];
+  p.cas = avecUid([
+    { nom:'Entrer et sortir de la maison en autonomie', acteurs:[pmr, parents] },
+    { nom:'Se déplacer dans la maison', acteurs:[pmr] },
+    { nom:'Être alerté en cas de chute', acteurs:[parents, urgences] },
+    { nom:'Superviser la production et la consommation d’énergie', acteurs:[parents] },
+    { nom:'Gérer l’ensoleillement (volets)', acteurs:[parents] },
+    { nom:'Sécuriser les accès dangereux', acteurs:[parents, enfant] }
+  ]);
+  p.contexte = avecUid([
+    { nom:'Personne âgée (PMR)', categorie:'utilisateur', interaction:'circule, entre, sort' },
+    { nom:'Parents', categorie:'utilisateur', interaction:'supervisent, règlent' },
+    { nom:'Enfant de 4 ans', categorie:'utilisateur', interaction:'est protégé' },
+    { nom:'Soleil', categorie:'energie', interaction:'rayonnement solaire' },
+    { nom:'Réseau électrique', categorie:'energie', interaction:'secours / revente' },
+    { nom:'Climat extérieur', categorie:'environnement', interaction:'température, vent, pluie' },
+    { nom:'Terrain', categorie:'environnement', interaction:'implantation, orientation' },
+    { nom:'Smartphone des parents', categorie:'systeme', interaction:'alertes, supervision' },
+    { nom:'Services d’urgence', categorie:'systeme', interaction:'appel en cas de chute' }
+  ]);
+  // Planning (18 semaines de 4 h ; 72 h par élève)
+  const t = [['Analyse du besoin et diagrammes SysML', 'equipe', 8, 1]];
+  const perso = {
+    [camille]: ['Étude bioclimatique et réglementation PMR', 'Modélisation thermique de l’enveloppe', 'Conception de l’enveloppe et de la rampe', 'Maquette de la structure', 'Validation des performances thermiques'],
+    [yanis]:   ['Étude des solutions de volets solaires', 'Simulation du mécanisme', 'Conception détaillée du volet (CAO)', 'Fabrication du prototype de volet', 'Essais et mesures d’énergie'],
+    [sarah]:   ['Étude des portes automatiques PMR', 'Simulation de l’effort d’ouverture', 'Conception du mécanisme d’ouverture', 'Fabrication du prototype de porte', 'Essais de sécurité anti-pincement'],
+    [mehdi]:   ['Étude des capteurs et de la détection de chute', 'Algorithme de détection et de supervision', 'Programmation de la supervision', 'Câblage des capteurs sur la maquette', 'Essais de détection et d’alerte']
+  };
+  Object.entries(perso).forEach(([u, n]) => { t.push([n[0], u, 8, 3]); t.push([n[1], u, 4, 5]); });
+  t.push(['Revue de projet n° 1', 'equipe', 4, 6]);
+  Object.entries(perso).forEach(([u, n]) => { t.push([n[2], u, 12, 7]); t.push([n[3], u, 8, 10]); });
+  t.push(['Revue de projet n° 2', 'equipe', 4, 12]);
+  Object.entries(perso).forEach(([u, n]) => t.push([n[4], u, 8, 13]));
+  t.push(['Intégration sur la maquette et essais globaux', 'equipe', 12, 15]);
+  t.push(['Préparation de la soutenance', 'equipe', 4, 18]);
+  p.taches = t.map(([nom, responsable, duree, semaine]) => ({ uid:uid(), nom, responsable, duree, semaine }));
+  return p;
+}
+
+/* =====================================================================
+   4. SAUVEGARDE (localStorage), EXPORT / IMPORT JSON
+   ===================================================================== */
+function lireSauvegarde() {
+  try { const s = localStorage.getItem(CLE_STOCKAGE); return s ? normaliser(JSON.parse(s)) : null; }
+  catch (e) { return null; }
+}
+
+/* Sauvegarde automatique, différée pour ne pas écrire à chaque frappe */
+function sauver() {
+  if (!projet) return;
+  projet.modifie = Date.now();
+  const etat = $('#etat-sauvegarde'); if (etat) etat.textContent = 'Enregistrement…';
+  clearTimeout(sauver._t);
+  sauver._t = setTimeout(() => {
+    try {
+      localStorage.setItem(CLE_STOCKAGE, JSON.stringify(projet));
+      if (etat) etat.textContent = '✓ Enregistré dans ce navigateur';
+    } catch (e) {
+      if (etat) etat.textContent = '⚠ Sauvegarde impossible (exportez en JSON)';
+    }
+  }, 350);
+}
+
+function telecharger(nomFichier, contenu, type) {
+  const blob = new Blob([contenu], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nomFichier;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function exporterJSON() {
+  telecharger(`projet-${projet.niveau}-${slug(projet.fiche.intitule)}.json`, JSON.stringify(projet, null, 2), 'application/json');
+  notifier('Fichier JSON téléchargé : rendez-le au professeur ou gardez-le pour reprendre le projet ailleurs.');
+}
+
+function importerJSON() {
+  const input = $('#fichier-json'); input.value = '';
+  input.onchange = () => {
+    const f = input.files[0]; if (!f) return;
+    const lecteur = new FileReader();
+    lecteur.onload = () => {
+      try {
+        const p = normaliser(JSON.parse(lecteur.result));
+        if (!confirmerRemplacement()) return;
+        ouvrirProjet(p); notifier('Projet « ' + (p.fiche.intitule || 'sans titre') + ' » ouvert.');
+      } catch (e) { alert("Impossible d'ouvrir ce fichier.\n" + e.message); }
+    };
+    lecteur.readAsText(f, 'utf-8');
+  };
+  input.click();
+}
+
+/* Demande confirmation avant d'écraser un projet en cours non vide */
+function confirmerRemplacement() {
+  const s = lireSauvegarde();
+  if (!s || (!s.fiche.intitule && !s.exigences.length && !s.taches.length)) return true;
+  return confirm(`Le projet en cours « ${s.fiche.intitule || 'sans titre'} » va être remplacé dans ce navigateur.\n\nPensez à l'exporter en JSON si vous voulez le garder.\n\nContinuer ?`);
+}
+
+/* =====================================================================
+   5. MODE SERVEUR (si l'application est servie par serveur.py)
+   ===================================================================== */
+async function detecterServeur() {
+  if (!/^https?:$/.test(location.protocol)) return false;
+  try {
+    const r = await fetch('api/ping', { cache: 'no-store' });
+    const j = await r.json();
+    return !!(j && j.ok && j.serveur === APP_ID);
+  } catch (e) { return false; }
+}
+
+async function envoyerAuProfesseur() {
+  const equipe = prompt("Nom de l'équipe et classe (ex. : « 1STI2D-B équipe 3 ») :", projet.envoi.equipe || '');
+  if (equipe === null) return;
+  if (!equipe.trim()) { alert("Indiquez un nom d'équipe pour que le professeur retrouve votre projet."); return; }
+  projet.envoi.equipe = equipe.trim(); sauver();
+  try {
+    const r = await fetch('api/projets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(projet) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.erreur || ('Erreur ' + r.status));
+    notifier('✓ Projet envoyé au professeur (' + j.fichier + ').', 4000);
+  } catch (e) { alert("L'envoi a échoué : " + e.message + "\nVous pouvez exporter le projet en JSON à la place."); }
+}
+
+/* Ouverture d'un projet du serveur (lien « Ouvrir » de la page professeur : ?projet=nom.json) */
+async function ouvrirDepuisServeur(nom) {
+  try {
+    const r = await fetch('api/projets/' + encodeURIComponent(nom), { cache:'no-store' });
+    if (!r.ok) throw new Error('Erreur ' + r.status);
+    const p = normaliser(await r.json());
+    history.replaceState(null, '', location.pathname);
+    ouvrirProjet(p); notifier('Projet du serveur ouvert : ' + nom);
+    return true;
+  } catch (e) { alert("Impossible d'ouvrir le projet " + nom + ' : ' + e.message); return false; }
+}
+
+/* =====================================================================
+   6. THÈME CLAIR / SOMBRE
+   ===================================================================== */
+function appliquerTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem(CLE_THEME, t); } catch (e) {}
+  const b = $('#btn-theme'); if (b) b.textContent = t === 'dark' ? '☀️' : '🌙';
+}
+function themeInitial() {
+  try { const t = localStorage.getItem(CLE_THEME); if (t) return t; } catch (e) {}
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+const basculerTheme = () => appliquerTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+
+/* =====================================================================
+   7. PAGE D'ACCUEIL
+   ===================================================================== */
+function afficherAccueil() {
+  projet = null;
+  const s = lireSauvegarde();
+  const date = s ? new Date(s.modifie).toLocaleString('fr-FR', { dateStyle:'long', timeStyle:'short' }) : '';
+  $('#app').innerHTML = `
+  <div class="accueil">
+    <div style="text-align:right"><button class="btn discret" id="btn-theme" title="Mode clair / sombre">🌙</button></div>
+    <header>
+      <h1>Tableau de bord des projets STI2D</h1>
+      <p>Remplissez la fiche de votre projet, obtenez automatiquement les diagrammes SysML et le planning, puis imprimez la fiche officielle en PDF.</p>
+    </header>
+    ${s ? `<div class="carte reprise">
+        <div><b>Reprendre le projet en cours</b><br><span class="aide">« ${esc(s.fiche.intitule || 'Projet sans titre')} » — ${NIVEAUX[s.niveau].label} — modifié le ${esc(date)}</span></div>
+        <button class="btn grand" data-action="reprendre">Reprendre ▸</button>
+      </div>` : ''}
+    <div class="niveaux">
+      ${['premiere','terminale'].map(n => `
+      <div class="carte niveau">
+        <div><span class="tag">Projet de ${NIVEAUX[n].heures} h</span></div>
+        <h2>${NIVEAUX[n].label}</h2>
+        <ul>
+          ${n === 'premiere'
+            ? `<li>Fiche de définition : thème sociétal, besoin, problème technique</li><li>Répartition des tâches par domaine (Énergie, Information, Matière)</li><li>Exemple : « Serre automatique »</li>`
+            : `<li>Fiche de présentation 2I2D sur 3 pages</li><li>Équipe par spécialité (AC, EE, ITEC, SIN) et liens STEM</li><li>Exemple : « Maison autonome à énergie optimisée »</li>`}
+          <li>Diagrammes d'exigences, de cas d'utilisation et de contexte, planning de Gantt</li>
+        </ul>
+        <div class="boutons">
+          <button class="btn" data-action="nouveau" data-niveau="${n}">Nouveau projet</button>
+          <button class="btn secondaire" data-action="exemple" data-niveau="${n}">Charger l'exemple</button>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div class="carte" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div style="flex:1;min-width:14rem"><b>Vous avez déjà un fichier de projet ?</b><br><span class="aide">Ouvrez le fichier .json exporté depuis cette application (sur ce poste ou un autre).</span></div>
+      <button class="btn secondaire grand" data-action="ouvrir">📂 Ouvrir un projet enregistré</button>
+    </div>
+    <p class="aide" style="text-align:center">🔒 Vos données restent sur cet ordinateur : rien n'est envoyé sur Internet.${serveurDisponible ? ' Connecté au serveur du lycée : vous pourrez envoyer votre projet au professeur.' : ''}</p>
+    <p class="credit">${CREDIT}</p>
+  </div>`;
+  appliquerTheme(document.documentElement.getAttribute('data-theme'));
+  $('#app').onclick = e => {
+    const b = e.target.closest('[data-action]'); if (!b) return;
+    const a = b.dataset.action, n = b.dataset.niveau;
+    if (a === 'reprendre') ouvrirProjet(s);
+    else if (a === 'nouveau') { if (confirmerRemplacement()) ouvrirProjet(projetVide(n)); }
+    else if (a === 'exemple') { if (confirmerRemplacement()) { ouvrirProjet(n === 'premiere' ? exemplePremiere() : exempleTerminale()); notifier('Exemple chargé : modifiez-le librement.'); } }
+    else if (a === 'ouvrir') importerJSON();
+  };
+  $('#btn-theme').onclick = basculerTheme;
+}
+
+/* =====================================================================
+   8. ÉDITEUR : structure générale (barre, onglets)
+   ===================================================================== */
+const ONGLETS = [
+  ['fiche', 'Fiche projet'], ['equipe', 'Équipe et tâches'], ['exigences', 'Exigences'],
+  ['cas', "Cas d'utilisation"], ['contexte', 'Contexte'], ['planning', 'Planning'], ['export', 'Export PDF']
+];
+
+function ouvrirProjet(p) {
+  projet = p; ongletActif = 'fiche';
+  $('#app').innerHTML = `
+    <div class="barre" id="barre">
+      <span class="logo" data-action="accueil" title="Retour à l'accueil">◆ Projets STI2D</span>
+      <span class="titre-projet" id="titre-projet"></span>
+      <span class="etat-sauvegarde" id="etat-sauvegarde">✓ Enregistré dans ce navigateur</span>
+      <div class="actions">
+        ${serveurDisponible ? `<button class="btn" data-action="envoyer" title="Envoyer le projet au serveur du professeur">📤 Envoyer au professeur</button>` : ''}
+        <button class="btn secondaire" data-action="json" title="Télécharger le projet au format JSON">💾 Exporter JSON</button>
+        <button class="btn secondaire" data-action="ouvrir" title="Ouvrir un fichier JSON">📂 Ouvrir</button>
+        <button class="btn secondaire" data-action="pdf" title="Imprimer ou enregistrer la fiche en PDF">🖨️ PDF</button>
+        <button class="btn discret" id="btn-theme" title="Mode clair / sombre">🌙</button>
+      </div>
+    </div>
+    <nav class="onglets" id="onglets">${ONGLETS.map(([k, l]) => `<button class="onglet" data-onglet="${k}">${l}<span class="pastille" data-pastille="${k}"></span></button>`).join('')}</nav>
+    <main id="contenu"></main>
+    <p class="credit" style="margin-bottom:1.5rem">${CREDIT}</p>`;
+  appliquerTheme(document.documentElement.getAttribute('data-theme'));
+  $('#btn-theme').onclick = basculerTheme;
+  $('#barre').onclick = e => {
+    const b = e.target.closest('[data-action]'); if (!b) return;
+    ({ accueil: afficherAccueil, json: exporterJSON, ouvrir: importerJSON, pdf: () => imprimer('fiche'), envoyer: envoyerAuProfesseur })[b.dataset.action]();
+  };
+  $('#onglets').onclick = e => { const b = e.target.closest('[data-onglet]'); if (b) afficherOnglet(b.dataset.onglet); };
+  const ajusterBarre = () => { const b = $('#barre'); if (b) document.documentElement.style.setProperty('--h-barre', b.offsetHeight + 'px'); };
+  ajusterBarre(); window.onresize = ajusterBarre;
+  majEntete();
+  afficherOnglet('fiche');
+  sauver();
+}
+
+/* Met à jour le titre et les pastilles d'alerte des onglets */
+function majEntete() {
+  const t = $('#titre-projet'); if (!t) return;
+  t.innerHTML = `${esc(projet.fiche.intitule || 'Projet sans titre')}<small>${NIVEAUX[projet.niveau].label} · ${NIVEAUX[projet.niveau].heures} h</small>`;
+  const b = bilanHeures();
+  const p = document.querySelector('[data-pastille="planning"]');
+  if (p) p.textContent = b.depassements.length ? ' ⚠' : '';
+}
+
+function afficherOnglet(nom) {
+  ongletActif = nom;
+  document.querySelectorAll('.onglet').forEach(o => o.classList.toggle('actif', o.dataset.onglet === nom));
+  // Nouveau conteneur à chaque onglet : les gestionnaires d'événements de l'onglet précédent disparaissent
+  const ancien = $('#contenu'), c = ancien.cloneNode(false);
+  ancien.replaceWith(c);
+  ({ fiche: ongletFiche, equipe: ongletEquipe, exigences: ongletExigences, cas: ongletCas,
+     contexte: ongletContexte, planning: ongletPlanning, export: ongletExport })[nom](c);
+}
+
+/* Appelée après chaque modification */
+function modifie() { sauver(); majEntete(); }
+
+/* =====================================================================
+   9. ÉDITEUR DE LISTES GÉNÉRIQUE (ajouter / supprimer / déplacer une ligne)
+   ---------------------------------------------------------------------
+   cfg = {
+     items       : tableau modifié directement,
+     colonnes    : [{k, label, type:'text'|'textarea'|'number'|'select'|'puces', options:()=>[[valeur,libellé]], ph, largeur, structurel}],
+     nouveau     : () => objet,   ajouter : libellé du bouton,   max : nombre maxi de lignes,
+     onChange    : (structurel) => {}   (structurel = vrai si ajout / suppression / changement d'identifiant)
+   }
+   ===================================================================== */
+function editeurListe(cont, cfg) {
+  const cellule = (c, it) => {
+    const v = it[c.k] ?? '';
+    const ph = c.ph ? ` placeholder="${esc(c.ph)}"` : '';
+    switch (c.type) {
+      case 'textarea': return `<textarea data-k="${c.k}" rows="2"${ph}>${esc(v)}</textarea>`;
+      case 'number':   return `<input type="number" data-k="${c.k}" value="${esc(v)}" min="${c.min ?? 0}" step="${c.step ?? 1}"${ph}>`;
+      case 'select':   return `<select data-k="${c.k}">${c.options(it).map(([val, lab]) => `<option value="${esc(val)}"${String(val) === String(v) ? ' selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
+      case 'puces': {
+        const opts = c.options(it);
+        if (!opts.length) return `<span class="aide">${esc(c.vide || 'Aucun choix disponible')}</span>`;
+        const sel = Array.isArray(v) ? v : [];
+        return `<div class="puces">${opts.map(([val, lab]) => `<button type="button" class="puce${sel.includes(val) ? ' on' : ''}" data-act="puce" data-k="${c.k}" data-v="${esc(val)}" aria-pressed="${sel.includes(val)}">${esc(lab || '(sans nom)')}</button>`).join('')}</div>`;
+      }
+      default: return `<input type="text" data-k="${c.k}" value="${esc(v)}"${ph}>`;
+    }
+  };
+
+  /* Redessine le tableau en conservant le champ qui avait le focus */
+  const rendre = () => {
+    const actif = document.activeElement, focus = cont.contains(actif) && actif.dataset.k
+      ? { i: actif.closest('tr')?.dataset.i, k: actif.dataset.k, s: actif.selectionStart, e: actif.selectionEnd } : null;
+    const cols = cfg.colonnes, n = cfg.items.length;
+    let h = `<div class="liste"><table class="tl"><thead><tr><th class="num">#</th>${cols.map(c => `<th${c.largeur ? ` style="width:${c.largeur}"` : ''}>${esc(c.label)}</th>`).join('')}<th class="act"></th></tr></thead><tbody>`;
+    cfg.items.forEach((it, i) => {
+      h += `<tr data-i="${i}"><td class="num">${i + 1}</td>${cols.map(c => `<td data-label="${esc(c.label)}">${cellule(c, it)}</td>`).join('')}
+        <td class="act"><button type="button" class="ico" data-act="haut" title="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="ico" data-act="bas" title="Descendre" ${i === n - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="ico danger" data-act="suppr" title="Supprimer la ligne">✕</button></td></tr>`;
+    });
+    if (!n) h += `<tr><td colspan="${cols.length + 2}" class="vide">Aucune ligne pour l'instant : cliquez sur « ${esc(cfg.ajouter || 'Ajouter')} ».</td></tr>`;
+    const plein = cfg.max && n >= cfg.max;
+    h += `</tbody></table></div><button type="button" class="btn secondaire" data-act="ajout" ${plein ? 'disabled' : ''}>＋ ${esc(cfg.ajouter || 'Ajouter une ligne')}</button>
+          ${plein ? `<span class="aide"> (maximum ${cfg.max})</span>` : ''}`;
+    cont.innerHTML = h;
+    if (focus) {
+      const el = cont.querySelector(`tr[data-i="${focus.i}"] [data-k="${focus.k}"]`);
+      if (el && el.tagName !== 'BUTTON') { el.focus(); try { if (focus.s != null) el.setSelectionRange(focus.s, focus.e); } catch (e) {} }
+    }
+  };
+
+  const colonne = k => cfg.colonnes.find(c => c.k === k);
+  // Saisie : on modifie l'objet sans redessiner (le focus est conservé)
+  cont.oninput = e => {
+    const el = e.target, tr = el.closest('tr[data-i]'); if (!tr || !el.dataset.k || el.dataset.act) return;
+    const c = colonne(el.dataset.k), it = cfg.items[+tr.dataset.i];
+    it[c.k] = c.type === 'number' ? (el.value === '' ? '' : nombre(el.value)) : el.value;
+    cfg.onChange(false);
+  };
+  // Fin de saisie d'un champ « structurel » (identifiant, nom…) : on prévient les autres vues
+  cont.onchange = e => {
+    const el = e.target; if (!el.dataset.k) return;
+    const c = colonne(el.dataset.k);
+    if (c && c.structurel) { cfg.onChange(true); setTimeout(rendre, 0); }
+  };
+  cont.onclick = e => {
+    const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+    const tr = b.closest('tr[data-i]'), i = tr ? +tr.dataset.i : -1, it = cfg.items;
+    switch (b.dataset.act) {
+      case 'ajout': it.push(cfg.nouveau()); break;
+      case 'suppr': it.splice(i, 1); break;
+      case 'haut': [it[i - 1], it[i]] = [it[i], it[i - 1]]; break;
+      case 'bas': [it[i + 1], it[i]] = [it[i], it[i + 1]]; break;
+      case 'puce': {
+        const k = b.dataset.k, v = b.dataset.v; const t = Array.isArray(it[i][k]) ? it[i][k] : (it[i][k] = []);
+        const j = t.indexOf(v); if (j >= 0) t.splice(j, 1); else t.push(v);
+        break;
+      }
+    }
+    rendre(); cfg.onChange(true);
+    if (b.dataset.act === 'ajout') { const champ = cont.querySelector(`tr[data-i="${it.length - 1}"] input, tr[data-i="${it.length - 1}"] textarea`); if (champ) champ.focus(); }
+  };
+  rendre();
+  return { rendre };
+}
+
+/* =====================================================================
+   10. ONGLET « FICHE PROJET »
+   ===================================================================== */
+/* Description des champs de la fiche pour chaque niveau.
+   max = longueur conseillée pour que la fiche imprimée reste lisible. */
+const CHAMPS = {
+  premiere: [
+    { titre:'Identification du projet', champs:[
+      { k:'intitule', label:'Intitulé du projet', ph:'Ex. : Serre automatique', max:80 },
+      { k:'lycee', label:'Lycée', ph:'Nom du lycée' },
+      { k:'enseignant', label:'Enseignant responsable', ph:'Ex. : Mme Martin' } ]},
+    { titre:'Contexte, besoin et problème', champs:[
+      { k:'theme', label:'Thème sociétal', ph:'Ex. : Agriculture urbaine et alimentation durable', aide:'Le grand enjeu de société auquel votre projet se rattache.' },
+      { k:'besoin', label:'Besoin initial', type:'textarea', max:450, aide:'Qui a besoin du produit, et pour quoi faire ?' },
+      { k:'finalite', label:'Finalité du produit', type:'textarea', max:400, aide:'À quoi sert le produit ? Quel service rend-il ?' },
+      { k:'probleme', label:'Problème technique à résoudre', type:'textarea', max:400, aide:'Formulez-le de préférence sous forme de question : « Comment… ? »' },
+      { k:'production', label:'Production finale attendue', type:'textarea', max:500, aide:'Ce que l\'équipe présentera à la fin du projet (maquette, prototype, programme, dossier…).' } ]}
+  ],
+  terminale: [
+    { titre:'Page 1 — Identification', champs:[
+      { k:'session', label:'Session', ph:'Ex. : 2027', court:true },
+      { k:'uai', label:"Code UAI de l'établissement", ph:'7 chiffres + 1 lettre, ex. : 0590000A', court:true, verif:v => !v || /^\d{7}[A-Za-z]$/.test(v.trim()) ? '' : 'Format attendu : 7 chiffres suivis d’une lettre.' },
+      { k:'intitule', label:'Intitulé du projet', ph:'Ex. : Maison autonome à énergie optimisée', max:90 },
+      { k:'thematique', label:'Thématique', type:'select', options:THEMATIQUES },
+      { k:'thematiqueAutre', label:'Autre thématique (préciser)', si:f => f.thematique === 'Autre' },
+      { k:'professeurs', label:'Professeurs responsables', ph:'Noms et spécialités' } ]},
+    { titre:'Page 1 — Besoin et problème technique', champs:[
+      { k:'besoin', label:'Besoin initial', type:'textarea', max:450 },
+      { k:'finalite', label:'Finalité en lien avec la thématique', type:'textarea', max:400 },
+      { k:'probleme', label:'Problème technique à résoudre', type:'textarea', max:400, aide:'Formulez-le de préférence sous forme de question : « Comment… ? »' } ]},
+    { titre:'Page 3 — Production et liens STEM', champs:[
+      { k:'production', label:'Production finale attendue', type:'textarea', max:600 },
+      { k:'stem', label:'Liens avec la physique-chimie et/ou les mathématiques (STEM)', type:'textarea', max:600 } ]}
+  ]
+};
+
+function ongletFiche(c) {
+  const f = projet.fiche;
+  const champ = d => {
+    if (d.si && !d.si(f)) return '';
+    const v = f[d.k] || '';
+    const cpt = d.max ? `<span class="compteur${v.length > d.max ? ' trop' : ''}" data-cpt="${d.k}">${v.length} / ${d.max}</span>` : '';
+    let input;
+    if (d.type === 'textarea') input = `<textarea id="f-${d.k}" data-k="${d.k}" rows="3">${esc(v)}</textarea>`;
+    else if (d.type === 'select') input = `<select id="f-${d.k}" data-k="${d.k}"><option value="">— Choisir —</option>${d.options.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    else input = `<input type="text" id="f-${d.k}" data-k="${d.k}" value="${esc(v)}" placeholder="${esc(d.ph || '')}">`;
+    const err = d.verif ? d.verif(v) : '';
+    return `<div class="champ"><label for="f-${d.k}">${esc(d.label)}${cpt}</label>${d.aide ? `<span class="aide">${esc(d.aide)}</span>` : ''}${input}
+      <span class="aide" data-err="${d.k}" style="color:var(--danger)">${esc(err)}</span></div>`;
+  };
+  const rendre = () => {
+    c.innerHTML = `<p class="intro">Modèle : ${esc(NIVEAUX[projet.niveau].modele)}. Tout est enregistré automatiquement dans ce navigateur.
+      ${projet.niveau === 'premiere' ? 'L\'effectif du groupe est calculé à partir de la liste des élèves (onglet « Équipe et tâches »).' : 'L\'effectif et la composition de l\'équipe sont calculés à partir de la liste des élèves (onglet « Équipe et tâches »).'}</p>` +
+      CHAMPS[projet.niveau].map(s => `<div class="carte"><h2>${esc(s.titre)}</h2><div class="${s.champs.some(x => x.court) ? 'ligne-champs' : ''}">${s.champs.map(champ).join('')}</div></div>`).join('');
+  };
+  rendre();
+  const def = k => CHAMPS[projet.niveau].flatMap(s => s.champs).find(d => d.k === k);
+  c.oninput = e => {
+    const k = e.target.dataset.k; if (!k) return;
+    f[k] = e.target.value;
+    const d = def(k);
+    const cpt = c.querySelector(`[data-cpt="${k}"]`);
+    if (cpt) { cpt.textContent = `${f[k].length} / ${d.max}`; cpt.classList.toggle('trop', f[k].length > d.max); }
+    if (d.verif) c.querySelector(`[data-err="${k}"]`).textContent = d.verif(f[k]);
+    if (k === 'thematique') { rendre(); $('#f-thematique').focus(); }
+    modifie();
+  };
+}
+
+/* =====================================================================
+   11. ONGLET « ÉQUIPE ET TÂCHES »
+   ===================================================================== */
+function ongletEquipe(c) {
+  const ter = projet.niveau === 'terminale';
+  c.innerHTML = `
+    <p class="intro">${ter ? 'Indiquez chaque élève (5 au maximum), sa spécialité et la tâche dont il est responsable.' : 'Indiquez chaque élève (5 au maximum), sa tâche et le domaine auquel elle se rattache : Énergie, Information ou Matière.'}</p>
+    <div class="carte"><h2>${ter ? 'Tâche de chaque élève' : 'Répartition des tâches'}</h2><div id="ed-eleves"></div></div>
+    <div class="carte" id="synthese-equipe"></div>`;
+  const synthese = () => {
+    const n = projet.eleves.length;
+    let h = `<h2>Effectif ${ter ? 'et composition de l’équipe' : 'du groupe'}</h2><p><b>${n}</b> élève${n > 1 ? 's' : ''}.</p>`;
+    if (ter) {
+      const cpt = compterSpecialites();
+      h += `<div class="liste"><table class="tl" style="max-width:520px"><thead><tr>${SPECIALITES.map(s => `<th title="${esc(SPECIALITES_NOMS[s])}">${s}</th>`).join('')}<th>Total</th></tr></thead>
+        <tbody><tr>${SPECIALITES.map(s => `<td>${cpt[s]}</td>`).join('')}<td><b>${n}</b></td></tr></tbody></table></div>
+        <p class="aide">${SPECIALITES.map(s => `${s} : ${SPECIALITES_NOMS[s]}`).join(' · ')}</p>`;
+    } else {
+      const d = {}; DOMAINES.forEach(x => d[x] = projet.eleves.filter(e => e.domaine === x).length);
+      h += `<p class="aide">${DOMAINES.map(x => `${x} : ${d[x]} tâche${d[x] > 1 ? 's' : ''}`).join(' · ')}</p>`;
+      const manquants = DOMAINES.filter(x => !d[x]);
+      if (manquants.length && n >= 3) h += `<div class="alerte warn">Aucune tâche dans le domaine : ${manquants.join(', ')}. Un projet STI2D mobilise en général les trois domaines.</div>`;
+    }
+    $('#synthese-equipe').innerHTML = h;
+  };
+  editeurListe($('#ed-eleves'), {
+    items: projet.eleves, max: MAX_ELEVES, ajouter: 'Ajouter un élève', nouveau: () => nouvelEleve(projet.niveau),
+    colonnes: ter ? [
+      { k:'nom', label:'Nom de l’élève', ph:'Prénom NOM', largeur:'22%', structurel:true },
+      { k:'specialite', label:'Spécialité', type:'select', options:() => SPECIALITES.map(s => [s, s]), largeur:'7.5rem', structurel:true },
+      { k:'tache', label:'Tâche', type:'textarea', ph:'Ce dont l’élève est responsable' }
+    ] : [
+      { k:'nom', label:'Élève', ph:'Prénom NOM', largeur:'22%', structurel:true },
+      { k:'tache', label:'Tâche', type:'textarea', ph:'Ce dont l’élève est responsable' },
+      { k:'domaine', label:'Domaine', type:'select', options:() => DOMAINES.map(d => [d, d]), largeur:'9.5rem', structurel:true }
+    ],
+    onChange: () => { modifie(); synthese(); }
+  });
+  synthese();
+}
+
+function compterSpecialites() {
+  const cpt = {}; SPECIALITES.forEach(s => cpt[s] = 0);
+  projet.eleves.forEach(e => { if (cpt[e.specialite] != null) cpt[e.specialite]++; });
+  return cpt;
+}
+
+/* =====================================================================
+   12. DIAGRAMMES SYSML (SVG, mise en page automatique, glisser-déposer)
+   ---------------------------------------------------------------------
+   Chaque « constructeur » renvoie { noeuds, liens, fond, vide, cadre }.
+   Un nœud : { key, forme:'rect'|'ellipse'|'acteur', x, y (centre), w, h, svg (dessin), bb (encombrement) }.
+   Les positions déplacées à la souris sont mémorisées dans projet.positions[diagramme][key].
+   ===================================================================== */
+const LARGEUR_CAR = 6.4;   // largeur moyenne d'un caractère à 12 px (approximation)
+const HL = 15;             // hauteur d'une ligne de texte
+
+/* Position d'un nœud : position mémorisée si elle existe, sinon position calculée */
+function pos(diag, key, x, y) {
+  const m = projet.positions[diag] && projet.positions[diag][key];
+  return (m && isFinite(m.x) && isFinite(m.y)) ? { x: m.x, y: m.y } : { x, y };
+}
+
+/* Texte multiligne centré (ou aligné à gauche si x0 fourni) */
+function texteSVG(lignes, cx, y0, cls = 'dg-t', ancre = 'middle') {
+  return lignes.map((l, i) => `<text class="${cls}" x="${cx}" y="${y0 + i * HL}" text-anchor="${ancre}">${esc(l)}</text>`).join('');
+}
+
+/* Point d'intersection entre le bord d'un nœud et la droite (centre → cible) */
+function bord(n, tx, ty) {
+  const dx = tx - n.x, dy = ty - n.y;
+  if (!dx && !dy) return { x: n.x, y: n.y };
+  if (n.forme === 'ellipse') {
+    const a = n.w / 2, b = n.h / 2, t = 1 / Math.sqrt(dx * dx / (a * a) + dy * dy / (b * b));
+    return { x: n.x + dx * t, y: n.y + dy * t };
+  }
+  const t = Math.min((n.w / 2) / Math.abs(dx || 1e-9), (n.h / 2) / Math.abs(dy || 1e-9));
+  return { x: n.x + dx * t, y: n.y + dy * t };
+}
+
+/* Dessin d'un lien entre deux nœuds A → B (les flèches sont dessinées « à la main »,
+   sans <marker>, pour un rendu identique à l'écran et à l'impression) */
+function dessinerLien(l, A, B) {
+  const p1 = bord(A, B.x, B.y), p2 = bord(B, A.x, A.y);
+  const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x), ux = Math.cos(ang), uy = Math.sin(ang);
+  const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+  const f = n => n.toFixed(1);
+  let s = '';
+  if (l.type === 'composition') {
+    // Composition (contenance SysML) : cercle avec une croix côté parent (B)
+    const r = 7, cx = p2.x - ux * r, cy = p2.y - uy * r;
+    s += `<line class="dg-trait" x1="${f(p1.x)}" y1="${f(p1.y)}" x2="${f(cx - ux * r)}" y2="${f(cy - uy * r)}"/>`;
+    s += `<circle class="dg-vide" cx="${f(cx)}" cy="${f(cy)}" r="${r}"/><path class="dg-trait" d="M${f(cx - r)} ${f(cy)}H${f(cx + r)}M${f(cx)} ${f(cy - r)}V${f(cy + r)}"/>`;
+  } else if (l.type === 'raffinement') {
+    // Raffinement : trait pointillé, flèche ouverte côté élément raffiné (B), stéréotype «refine»
+    const a = 11, w = 6;
+    s += `<line class="dg-trait pointille" x1="${f(p1.x)}" y1="${f(p1.y)}" x2="${f(p2.x)}" y2="${f(p2.y)}"/>`;
+    s += `<path class="dg-trait" d="M${f(p2.x - ux * a - uy * w)} ${f(p2.y - uy * a + ux * w)}L${f(p2.x)} ${f(p2.y)}L${f(p2.x - ux * a + uy * w)} ${f(p2.y - uy * a - ux * w)}"/>`;
+    s += etiquette('«refine»', mx, my);
+  } else {
+    s += `<line class="dg-trait" x1="${f(p1.x)}" y1="${f(p1.y)}" x2="${f(p2.x)}" y2="${f(p2.y)}"/>`;
+    if (l.label) s += etiquette(l.label, mx, my);
+  }
+  return s;
+}
+function etiquette(txt, x, y) {
+  const lignes = couper(txt, 24), w = Math.max(...lignes.map(l => l.length)) * 5.9 + 8, h = lignes.length * 13 + 4;
+  return `<rect class="dg-etiq" x="${(x - w / 2).toFixed(1)}" y="${(y - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h}" rx="3"/>` +
+    lignes.map((l, i) => `<text class="dg-t petit" x="${x.toFixed(1)}" y="${(y - h / 2 + 12 + i * 13).toFixed(1)}" text-anchor="middle">${esc(l)}</text>`).join('');
+}
+
+/* ---------- Diagramme d'exigences ---------- */
+function construireExigences() {
+  const ex = projet.exigences, parUid = {}; ex.forEach(e => parUid[e.uid] = e);
+  const W = 214;
+  const noeuds = ex.map(e => {
+    const corps = [`Id = "${e.id || '?'}"`];
+    couper('Texte = « ' + (e.texte || '…') + ' »', 31).forEach(l => corps.push(l));
+    if (e.critere) couper('Critère : ' + e.critere, 31).forEach(l => corps.push(l));
+    if (e.niveau) couper('Niveau : ' + e.niveau, 31).forEach(l => corps.push(l));
+    return { key: e.uid, e, forme: 'rect', w: W, h: 38 + corps.length * HL + 8, corps };
+  });
+  // Arborescence : le « parent » d'une exigence est l'exigence avec laquelle elle est en relation
+  const parent = n => { const r = n.e.relation; return r && r !== n.e.uid && parUid[r] ? r : null; };
+  const enfants = {}; noeuds.forEach(n => enfants[n.key] = []);
+  noeuds.forEach(n => { const p = parent(n); if (p) enfants[p].push(n.key); });
+  const parKey = {}; noeuds.forEach(n => parKey[n.key] = n);
+  /* Disposition : « haut » = arbre de haut en bas, « gauche » = arbre de gauche à droite
+     (plus compact sur une feuille A4 en portrait). En automatique, on passe à l'horizontal
+     dès que l'arbre a plus de 4 feuilles. */
+  const place = {}, vu = new Set(); let col = 0, yCur = 0;
+  const feuilles = noeuds.filter(n => !enfants[n.key].length).length;
+  let dispo = projet.options.dispoEx || 'auto';
+  if (dispo === 'auto') dispo = feuilles > 4 ? 'gauche' : 'haut';
+  const placer = (k, d) => {
+    vu.add(k);
+    const ks = enfants[k].filter(x => !vu.has(x));
+    ks.forEach(x => vu.add(x));                       // évite les boucles
+    if (!ks.length) { place[k] = { col: col++, d, y: yCur + parKey[k].h / 2 }; yCur += parKey[k].h + 22; }
+    else {
+      ks.forEach(x => placer(x, d + 1));
+      const a = place[ks[0]], b = place[ks[ks.length - 1]];
+      place[k] = { col: (a.col + b.col) / 2, d, y: (a.y + b.y) / 2 };
+    }
+  };
+  noeuds.filter(n => !parent(n)).forEach(n => placer(n.key, 0));
+  noeuds.forEach(n => { if (!vu.has(n.key)) placer(n.key, 0); });   // éléments pris dans une boucle
+  // Hauteur de chaque niveau = hauteur du plus grand nœud du niveau
+  const hNiv = []; noeuds.forEach(n => { const d = place[n.key].d; hNiv[d] = Math.max(hNiv[d] || 0, n.h); });
+  const yNiv = []; let y = 0; hNiv.forEach((h, d) => { yNiv[d] = y + h / 2; y += h + 70; });
+  noeuds.forEach(n => {
+    const pl = place[n.key];
+    const p = dispo === 'gauche' ? pos('exigences', n.key, pl.d * (W + 80), pl.y)
+                                 : pos('exigences', n.key, pl.col * (W + 36), yNiv[pl.d]);
+    n.x = p.x; n.y = p.y;
+    const x0 = n.x - W / 2, y0 = n.y - n.h / 2;
+    n.svg = `<rect class="dg-forme" x="${x0}" y="${y0}" width="${W}" height="${n.h}" rx="2"/>
+      <rect class="dg-tete" x="${x0}" y="${y0}" width="${W}" height="36" rx="2"/>
+      <text class="dg-t petit" x="${n.x}" y="${y0 + 14}" text-anchor="middle">«requirement»</text>
+      <text class="dg-t gras" x="${n.x}" y="${y0 + 29}" text-anchor="middle">Exigence ${esc(n.e.id || '')}</text>
+      ${texteSVG(n.corps, x0 + 8, y0 + 52, 'dg-t', 'start')}`;
+  });
+  const liens = noeuds.filter(n => parent(n)).map(n => ({ de: n.key, a: parent(n), type: n.e.typeRel === 'raffinement' ? 'raffinement' : 'composition' }));
+  return { noeuds, liens, cadre: 'req [Exigences] ' + (projet.fiche.intitule || 'Système'),
+           vide: ex.length ? '' : 'Ajoutez des exigences pour voir le diagramme.' };
+}
+
+/* ---------- Diagramme de cas d'utilisation ---------- */
+function construireCas() {
+  const noeuds = [], liens = [];
+  const cas = projet.cas, acteurs = projet.acteurs;
+  // Cas d'utilisation (ellipses) disposés en colonne(s) à l'intérieur du cadre du système
+  const deuxCol = cas.length > 6, parCol = deuxCol ? Math.ceil(cas.length / 2) : cas.length;
+  cas.forEach((c, i) => {
+    const lignes = couper(c.nom || '…', 24);
+    const w = Math.max(150, Math.min(240, Math.max(...lignes.map(l => l.length)) * LARGEUR_CAR + 50));
+    const h = Math.max(54, lignes.length * HL + 28);
+    const colonne = deuxCol ? Math.floor(i / parCol) : 0, rang = deuxCol ? i % parCol : i;
+    const p = pos('cas', c.uid, deuxCol ? (colonne ? 135 : -135) : 0, rang * 82);
+    noeuds.push({ key: c.uid, forme: 'ellipse', x: p.x, y: p.y, w, h, lignes });
+  });
+  noeuds.forEach(n => {
+    n.svg = `<ellipse class="dg-forme" cx="${n.x}" cy="${n.y}" rx="${n.w / 2}" ry="${n.h / 2}"/>${texteSVG(n.lignes, n.x, n.y - (n.lignes.length - 1) * HL / 2 + 4)}`;
+  });
+  // Cadre du système : englobe toutes les ellipses
+  let fond = '', cadreSys = null;
+  if (noeuds.length) {
+    const x1 = Math.min(...noeuds.map(n => n.x - n.w / 2)) - 30, x2 = Math.max(...noeuds.map(n => n.x + n.w / 2)) + 30;
+    const y1 = Math.min(...noeuds.map(n => n.y - n.h / 2)) - 44, y2 = Math.max(...noeuds.map(n => n.y + n.h / 2)) + 24;
+    cadreSys = { x1, x2, y1, y2 };
+    fond = `<rect class="dg-systeme" x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" rx="6"/>
+      <text class="dg-t titre" x="${(x1 + x2) / 2}" y="${y1 + 22}" text-anchor="middle">${esc(projet.fiche.intitule || 'Système')}</text>`;
+  }
+  // Acteurs (bonhommes) : alternativement à gauche et à droite du cadre,
+  // à la hauteur moyenne des cas d'utilisation auxquels ils sont reliés
+  const cs = cadreSys || { x1: -100, x2: 100, y1: 0, y2: 0 };
+  const cotes = { g: [], d: [] };
+  acteurs.forEach((a, i) => cotes[i % 2 ? 'd' : 'g'].push(a));
+  Object.entries(cotes).forEach(([cote, liste]) => {
+    const pas = Math.max(120, (cs.y2 - cs.y1) / Math.max(1, liste.length));
+    liste.forEach((a, i) => {
+      const relies = noeuds.filter(n => (cas.find(c => c.uid === n.key)?.acteurs || []).includes(a.uid));
+      let yDef = relies.length ? relies.reduce((s, n) => s + n.y, 0) / relies.length : cs.y1 + 60 + i * pas;
+      // évite qu'un acteur se superpose au précédent du même côté
+      const prec = liste.slice(0, i).map(b => noeuds.find(n => n.key === b.uid)).filter(Boolean);
+      prec.forEach(n => { if (Math.abs(n.y - yDef) < 110) yDef = n.y + 110; });
+      const p = pos('cas', a.uid, cote === 'g' ? cs.x1 - 110 : cs.x2 + 110, yDef);
+      const lignes = couper(a.nom || 'Acteur', 16);
+      const n = { key: a.uid, forme: 'acteur', x: p.x, y: p.y, w: 40, h: 66, lignes };
+      n.svg = `<rect x="${p.x - 30}" y="${p.y - 40}" width="60" height="${80 + lignes.length * HL}" fill="transparent"/>
+        <circle class="dg-forme" cx="${p.x}" cy="${p.y - 27}" r="9"/>
+        <path class="dg-trait" style="stroke-width:1.6" d="M${p.x} ${p.y - 18}V${p.y + 6}M${p.x - 16} ${p.y - 9}H${p.x + 16}M${p.x} ${p.y + 6}L${p.x - 13} ${p.y + 28}M${p.x} ${p.y + 6}L${p.x + 13} ${p.y + 28}"/>
+        ${texteSVG(lignes, p.x, p.y + 44)}`;
+      n.bb = { x1: p.x - 55, x2: p.x + 55, y1: p.y - 40, y2: p.y + 36 + lignes.length * HL };
+      noeuds.push(n);
+    });
+  });
+  // Associations acteur — cas d'utilisation
+  cas.forEach(c => (c.acteurs || []).forEach(a => { if (acteurs.some(x => x.uid === a)) liens.push({ de: a, a: c.uid, type: 'assoc' }); }));
+  return { noeuds, liens, fond, cadre: 'uc [Cas d’utilisation] ' + (projet.fiche.intitule || 'Système'),
+           extra: cadreSys, vide: cas.length || acteurs.length ? '' : "Ajoutez des acteurs et des cas d'utilisation pour voir le diagramme." };
+}
+
+/* ---------- Diagramme de contexte ---------- */
+function construireContexte() {
+  const noeuds = [], liens = [];
+  const nomSys = projet.fiche.intitule || 'Système';
+  const lsys = couper(nomSys, 24);
+  const ps = pos('contexte', 'systeme', 0, 0);
+  const sys = { key: 'systeme', forme: 'rect', x: ps.x, y: ps.y, w: 210, h: 46 + lsys.length * HL };
+  sys.svg = `<rect class="dg-forme" style="stroke-width:2" x="${sys.x - sys.w / 2}" y="${sys.y - sys.h / 2}" width="${sys.w}" height="${sys.h}" rx="3"/>
+    <text class="dg-t petit" x="${sys.x}" y="${sys.y - sys.h / 2 + 17}" text-anchor="middle">«block» système étudié</text>
+    ${texteSVG(lsys, sys.x, sys.y - sys.h / 2 + 36, 'dg-t gras')}`;
+  noeuds.push(sys);
+  // Les éléments extérieurs sont regroupés par catégorie puis répartis sur une ellipse autour du système
+  const ordre = Object.keys(CATEGORIES_CTX);
+  const elems = [...projet.contexte].sort((a, b) => ordre.indexOf(a.categorie) - ordre.indexOf(b.categorie));
+  const n = elems.length, rx = Math.max(300, 90 + n * 32), ry = Math.max(190, 60 + n * 22);
+  elems.forEach((e, i) => {
+    const ang = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(1, n);
+    const lignes = couper(e.nom || '…', 20);
+    const w = 160, h = 34 + lignes.length * HL;
+    const p = pos('contexte', e.uid, Math.round(Math.cos(ang) * rx), Math.round(Math.sin(ang) * ry));
+    const cat = CATEGORIES_CTX[e.categorie] ? e.categorie : 'systeme';
+    const nd = { key: e.uid, forme: 'rect', x: p.x, y: p.y, w, h };
+    nd.svg = `<rect class="dg-forme cat-${cat}" x="${p.x - w / 2}" y="${p.y - h / 2}" width="${w}" height="${h}" rx="8"/>
+      <text class="dg-t petit" x="${p.x}" y="${p.y - h / 2 + 15}" text-anchor="middle">«${esc(CATEGORIES_CTX[cat].toLowerCase())}»</text>
+      ${texteSVG(lignes, p.x, p.y - h / 2 + 31, 'dg-t gras')}`;
+    noeuds.push(nd);
+    liens.push({ de: e.uid, a: 'systeme', type: 'lien', label: e.interaction });
+  });
+  return { noeuds, liens, cadre: 'bdd [Contexte] ' + nomSys, vide: n ? '' : '' };
+}
+
+const CONSTRUCTEURS = { exigences: construireExigences, cas: construireCas, contexte: construireContexte };
+
+/* Calcule le contenu SVG complet d'un diagramme : { vb:[x,y,w,h], inner, noeuds } */
+function calculerDiagramme(nom) {
+  const d = CONSTRUCTEURS[nom]();
+  const parKey = {}; d.noeuds.forEach(n => parKey[n.key] = n);
+  if (d.vide) return { vb: [0, 0, 520, 160], inner: `<text class="dg-placeholder" x="260" y="85" text-anchor="middle">${esc(d.vide)}</text>`, noeuds: parKey };
+  // Encombrement total
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  const etendre = b => { x1 = Math.min(x1, b.x1); y1 = Math.min(y1, b.y1); x2 = Math.max(x2, b.x2); y2 = Math.max(y2, b.y2); };
+  d.noeuds.forEach(n => etendre(n.bb || { x1: n.x - n.w / 2, x2: n.x + n.w / 2, y1: n.y - n.h / 2, y2: n.y + n.h / 2 }));
+  if (d.extra) etendre(d.extra);
+  // Cadre de diagramme SysML (avec son onglet « type [élément] nom »)
+  const m = 22; x1 -= m; x2 += m; y1 -= m + 26; y2 += m;
+  const titre = d.cadre, wTag = Math.min(x2 - x1 - 10, titre.length * 6.6 + 26);
+  let s = `<rect class="dg-cadre" x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}"/>
+    <path class="dg-cadre-tag" d="M${x1} ${y1}H${x1 + wTag}V${y1 + 12}L${x1 + wTag - 10} ${y1 + 22}H${x1}Z"/>
+    <text class="dg-t gras" x="${x1 + 7}" y="${y1 + 15}">${esc(titre)}</text>`;
+  s += d.fond || '';
+  s += d.liens.map(l => parKey[l.de] && parKey[l.a] ? dessinerLien(l, parKey[l.de], parKey[l.a]) : '').join('');
+  s += d.noeuds.map(n => `<g class="dg-n" data-key="${esc(n.key)}">${n.svg}</g>`).join('');
+  const p = 4;
+  return { vb: [x1 - p, y1 - p, x2 - x1 + 2 * p, y2 - y1 + 2 * p].map(v => Math.round(v)), inner: s, noeuds: parKey };
+}
+
+/* SVG autonome (pour l'aperçu et l'impression) */
+function svgDiagramme(nom) {
+  const r = calculerDiagramme(nom);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r.vb.join(' ')}" preserveAspectRatio="xMidYMid meet">${r.inner}</svg>`;
+}
+
+/* Affiche un diagramme dans un <svg> de la page et active le glisser-déposer */
+function monterDiagramme(svg, nom) {
+  const redessiner = (garderVB) => {
+    const r = calculerDiagramme(nom);
+    if (!garderVB) svg.setAttribute('viewBox', r.vb.join(' '));
+    svg.innerHTML = r.inner; svg._noeuds = r.noeuds;
+  };
+  let glisse = null;
+  const point = e => new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+  svg.onpointerdown = e => {
+    const g = e.target.closest('.dg-n'); if (!g) return;
+    const n = svg._noeuds[g.dataset.key]; if (!n) return;
+    const p = point(e);
+    glisse = { key: n.key, dx: n.x - p.x, dy: n.y - p.y };
+    svg.setPointerCapture(e.pointerId); e.preventDefault();
+  };
+  svg.onpointermove = e => {
+    if (!glisse) return;
+    const p = point(e);
+    projet.positions[nom][glisse.key] = { x: Math.round(p.x + glisse.dx), y: Math.round(p.y + glisse.dy) };
+    redessiner(true);
+    const g = svg.querySelector(`.dg-n[data-key="${CSS.escape(glisse.key)}"]`); if (g) g.classList.add('glisse');
+  };
+  const fin = () => { if (!glisse) return; glisse = null; redessiner(false); sauver(); };
+  svg.onpointerup = fin; svg.onpointercancel = fin;
+  redessiner(false);
+  return redessiner;
+}
+
+/* Carte « diagramme » commune aux trois onglets de diagrammes */
+function carteDiagramme(titre, nom) {
+  return `<div class="carte diag-carte colle">
+    <div class="diag-barre"><h3>${esc(titre)}</h3>
+      ${nom === 'exigences' ? `<select id="dispo-ex" style="width:auto" title="Disposition de l'arbre">
+        ${[['auto', 'Disposition auto'], ['haut', 'De haut en bas'], ['gauche', 'De gauche à droite']].map(([v, l]) => `<option value="${v}"${projet.options.dispoEx === v ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+      <button class="btn secondaire" data-reorg="${nom}" title="Revenir à la mise en page automatique">↺ Réorganiser</button>
+      <button class="btn secondaire" data-svg="${nom}" title="Télécharger l'image du diagramme">⬇ SVG</button></div>
+    <svg class="diagramme" id="svg-${nom}" role="img" aria-label="${esc(titre)}"></svg>
+    <p class="aide">Astuce : déplacez les éléments à la souris (ou au doigt). « Réorganiser » rétablit la mise en page automatique.</p></div>`;
+}
+function brancherCarteDiagramme(c, nom) {
+  const redessiner = monterDiagramme($('#svg-' + nom), nom);
+  c.querySelector(`[data-reorg="${nom}"]`).onclick = () => { projet.positions[nom] = {}; redessiner(false); sauver(); };
+  c.querySelector(`[data-svg="${nom}"]`).onclick = () => {
+    // On fige les couleurs en clair pour un fichier lisible partout
+    const styles = `<style>${[...document.styleSheets[0].cssRules].filter(r => r.selectorText && /\.dg-|\.cat-/.test(r.selectorText)).map(r => r.cssText).join('')}
+      svg{--dg-bg:#fff;--dg-stroke:#1d232c;--dg-text:#111;--dg-muted:#444;--dg-fill:#fff;--dg-head:#e6edf8;--dg-frame:#fff;--dg-grid:#dfe3ea;--dg-utilisateur:#e6edf8;--dg-energie:#fff1d4;--dg-environnement:#e3f3e6;--dg-systeme:#f0e8f9}</style>`;
+    const r = calculerDiagramme(nom);
+    telecharger(`diagramme-${nom}-${slug(projet.fiche.intitule)}.svg`,
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r.vb.join(' ')}" width="${r.vb[2]}" height="${r.vb[3]}">${styles}<rect x="${r.vb[0]}" y="${r.vb[1]}" width="100%" height="100%" fill="#fff"/>${r.inner}</svg>`, 'image/svg+xml');
+  };
+  return redessiner;
+}
+
+/* =====================================================================
+   13. ONGLETS DES DIAGRAMMES
+   ===================================================================== */
+function ongletExigences(c) {
+  c.innerHTML = `<p class="intro">Chaque exigence a un identifiant (Id), un texte, et si possible un critère et un niveau mesurables.
+    Pour construire l'arborescence, indiquez l'exigence « mère » et le type de relation :
+    <b>composition</b> (l'exigence fait partie de l'exigence mère) ou <b>raffinement</b> (elle la précise).</p>
+    <div class="grille2"><div class="carte"><h2>Liste des exigences</h2><div id="ed-ex"></div></div>${carteDiagramme("Diagramme d'exigences", 'exigences')}</div>`;
+  const redessiner = brancherCarteDiagramme(c, 'exigences');
+  $('#dispo-ex').onchange = e => { projet.options.dispoEx = e.target.value; projet.positions.exigences = {}; redessiner(false); sauver(); };
+  const ed = editeurListe($('#ed-ex'), {
+    items: projet.exigences, ajouter: 'Ajouter une exigence',
+    nouveau: () => {
+      const racine = projet.exigences[0];
+      return { uid: uid(), id: proposerId(), texte: '', critere: '', niveau: '', relation: racine ? racine.uid : '', typeRel: 'composition' };
+    },
+    colonnes: [
+      { k:'id', label:'Id', ph:'1.1', largeur:'4.5rem', structurel:true },
+      { k:'texte', label:'Texte', type:'textarea', ph:'Le système doit…' },
+      { k:'critere', label:'Critère', ph:'Ex. : Température', largeur:'16%' },
+      { k:'niveau', label:'Niveau', ph:'Ex. : 18 à 26 °C', largeur:'14%' },
+      { k:'relation', label:'Exigence mère', type:'select', largeur:'8rem', structurel:true,
+        options: it => [['', '— aucune —'], ...projet.exigences.filter(e => e.uid !== it.uid).map(e => [e.uid, e.id || '(sans Id)'])] },
+      { k:'typeRel', label:'Relation', type:'select', largeur:'8.5rem', structurel:true,
+        options: () => [['composition', 'Composition'], ['raffinement', 'Raffinement']] }
+    ],
+    onChange: (structurel) => { modifie(); redessiner(false); }
+  });
+}
+/* Propose l'identifiant suivant (1, 1.1, 1.2…) */
+function proposerId() {
+  const ex = projet.exigences;
+  if (!ex.length) return '1';
+  const enfants = ex.map(e => e.id).filter(id => /^1\.\d+$/.test(id || '')).map(id => +id.split('.')[1]);
+  return '1.' + ((enfants.length ? Math.max(...enfants) : 0) + 1);
+}
+
+function ongletCas(c) {
+  c.innerHTML = `<p class="intro">Les <b>acteurs</b> sont les personnes ou systèmes extérieurs qui utilisent le produit.
+    Les <b>cas d'utilisation</b> décrivent les services rendus (verbe à l'infinitif : « Régler les consignes »).
+    Cliquez sur les noms d'acteurs pour les relier à chaque cas.</p>
+    <div class="grille2"><div>
+      <div class="carte"><h2>Acteurs</h2><div id="ed-acteurs"></div></div>
+      <div class="carte"><h2>Cas d'utilisation</h2><div id="ed-cas"></div></div>
+    </div>${carteDiagramme("Diagramme de cas d'utilisation", 'cas')}</div>`;
+  const redessiner = brancherCarteDiagramme(c, 'cas');
+  let edCas;
+  editeurListe($('#ed-acteurs'), {
+    items: projet.acteurs, ajouter: 'Ajouter un acteur', nouveau: () => ({ uid: uid(), nom: '' }),
+    colonnes: [{ k:'nom', label:"Nom de l'acteur", ph:'Ex. : Jardinier', structurel:true }],
+    onChange: (structurel) => {
+      // Un acteur supprimé n'est plus relié à aucun cas
+      const ids = new Set(projet.acteurs.map(a => a.uid));
+      projet.cas.forEach(cu => cu.acteurs = (cu.acteurs || []).filter(a => ids.has(a)));
+      modifie(); redessiner(false); if (structurel && edCas) edCas.rendre();
+    }
+  });
+  edCas = editeurListe($('#ed-cas'), {
+    items: projet.cas, ajouter: "Ajouter un cas d'utilisation",
+    nouveau: () => ({ uid: uid(), nom: '', acteurs: projet.acteurs.length === 1 ? [projet.acteurs[0].uid] : [] }),
+    colonnes: [
+      { k:'nom', label:"Cas d'utilisation", ph:'Ex. : Régler les consignes', largeur:'42%' },
+      { k:'acteurs', label:'Acteurs reliés', type:'puces', vide:"Ajoutez d'abord des acteurs.", options: () => projet.acteurs.map(a => [a.uid, a.nom]) }
+    ],
+    onChange: () => { modifie(); redessiner(false); }
+  });
+}
+
+function ongletContexte(c) {
+  c.innerHTML = `<p class="intro">Le diagramme de contexte place le système au centre, entouré de tout ce qui interagit avec lui :
+    utilisateurs, sources d'énergie, environnement, autres systèmes. Précisez pour chaque élément la nature de l'interaction.
+    Le bloc central porte l'intitulé du projet (onglet « Fiche projet »).</p>
+    <div class="grille2"><div class="carte"><h2>Éléments extérieurs</h2><div id="ed-ctx"></div></div>${carteDiagramme('Diagramme de contexte', 'contexte')}</div>`;
+  const redessiner = brancherCarteDiagramme(c, 'contexte');
+  editeurListe($('#ed-ctx'), {
+    items: projet.contexte, ajouter: 'Ajouter un élément',
+    nouveau: () => ({ uid: uid(), nom: '', categorie: 'utilisateur', interaction: '' }),
+    colonnes: [
+      { k:'nom', label:'Élément', ph:'Ex. : Soleil', largeur:'34%' },
+      { k:'categorie', label:'Catégorie', type:'select', largeur:'8.5rem', options: () => Object.entries(CATEGORIES_CTX) },
+      { k:'interaction', label:'Interaction (texte du lien)', ph:'Ex. : éclaire, chauffe' }
+    ],
+    onChange: () => { modifie(); redessiner(false); }
+  });
+}
+
+/* =====================================================================
+   14. PLANNING : tableau des tâches, Gantt, contrôle des heures
+   ===================================================================== */
+function nomResponsable(r) {
+  if (r === 'equipe') return "Toute l'équipe";
+  const e = projet.eleves.find(x => x.uid === r);
+  return e ? (e.nom || 'Élève ' + (projet.eleves.indexOf(e) + 1)) : '—';
+}
+function couleurResponsable(r) {
+  if (r === 'equipe') return COULEURS[5];
+  const i = projet.eleves.findIndex(x => x.uid === r);
+  return i >= 0 ? COULEURS[i % 5] : '#9aa3ae';
+}
+
+/* Bilan des heures : chaque élève dispose de 36 h (Première) ou 72 h (Terminale).
+   Une tâche « Toute l'équipe » compte pour chacun des élèves. */
+function bilanHeures() {
+  const lim = NIVEAUX[projet.niveau].heures;
+  const equipe = projet.taches.filter(t => t.responsable === 'equipe').reduce((s, t) => s + nombre(t.duree), 0);
+  const eleves = projet.eleves.map(e => {
+    const h = equipe + projet.taches.filter(t => t.responsable === e.uid).reduce((s, t) => s + nombre(t.duree), 0);
+    return { e, h, nom: nomResponsable(e.uid) };
+  });
+  const nonAffecte = projet.taches.filter(t => !t.responsable || (t.responsable !== 'equipe' && !projet.eleves.some(e => e.uid === t.responsable)));
+  return { lim, equipe, eleves, nonAffecte, depassements: eleves.filter(x => x.h > lim + 1e-9),
+           total: projet.taches.reduce((s, t) => s + nombre(t.duree), 0) };
+}
+
+/* Diagramme de Gantt (SVG) : une ligne par tâche, une colonne par semaine */
+function svgGantt(pourImpression = false) {
+  const hps = Math.max(0.5, nombre(projet.planning.hps) || NIVEAUX[projet.niveau].hps);
+  const taches = projet.taches;
+  const fin = t => Math.max(1, Math.round(nombre(t.semaine)) || 1) - 1 + nombre(t.duree) / hps;
+  const nbSem = Math.max(1, Math.round(nombre(projet.planning.semaines)) || 0, ...taches.map(t => Math.ceil(fin(t) - 1e-9)));
+  const LW = 250, CW = Math.max(22, Math.min(44, Math.floor(640 / nbSem))), RH = pourImpression ? 20 : 26, TH = 28;
+  const W = LW + nbSem * CW, H = TH + Math.max(1, taches.length) * RH + 6;
+  let s = '';
+  for (let i = 0; i < nbSem; i++) {
+    const x = LW + i * CW;
+    s += `<line class="dg-grille" x1="${x}" y1="0" x2="${x}" y2="${H}"/><text class="dg-t petit" x="${x + CW / 2}" y="18" text-anchor="middle">S${i + 1}</text>`;
+  }
+  s += `<line class="dg-trait" x1="0" y1="${TH}" x2="${W}" y2="${TH}"/><line class="dg-trait" x1="${LW}" y1="0" x2="${LW}" y2="${H}"/>`;
+  s += `<text class="dg-t gras" x="6" y="18">Tâche (responsable)</text>`;
+  if (!taches.length) s += `<text class="dg-placeholder" x="${W / 2}" y="${TH + 18}" text-anchor="middle">Aucune tâche planifiée.</text>`;
+  taches.forEach((t, i) => {
+    const y = TH + i * RH;
+    if (i % 2) s += `<rect x="0" y="${y}" width="${W}" height="${RH}" fill="var(--dg-grid)" opacity=".35"/>`;
+    const lab = (t.nom || '(sans nom)') + ' — ' + nomResponsable(t.responsable);
+    const max = 40;
+    s += `<text class="dg-t" x="6" y="${y + RH / 2 + 4}"><title>${esc(lab)}</title>${esc(lab.length > max ? lab.slice(0, max - 1) + '…' : lab)}</text>`;
+    const d = nombre(t.duree);
+    if (d > 0) {
+      const x0 = LW + (Math.max(1, Math.round(nombre(t.semaine)) || 1) - 1) * CW, w = Math.max(3, d / hps * CW);
+      s += `<rect x="${x0 + 1}" y="${y + 4}" width="${w - 2}" height="${RH - 8}" rx="4" fill="${couleurResponsable(t.responsable)}"/>`;
+      if (w > 30) s += `<text class="dg-t" style="fill:#fff;font-weight:700;font-size:10.5px" x="${x0 + w / 2}" y="${y + RH / 2 + 4}" text-anchor="middle">${esc(fmtH(d))}</text>`;
+    }
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="gantt" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet"${pourImpression ? '' : ` style="max-width:${W * 1.15}px"`}>${s}</svg>`;
+}
+
+function htmlBilan(b) {
+  let h = '';
+  if (b.depassements.length) h += `<div class="alerte danger"><b>⚠ Dépassement d'heures.</b> ${b.depassements.map(x => `${esc(x.nom)} : ${fmtH(x.h)} prévues pour ${b.lim} h disponibles`).join(' · ')}. Réduisez ou répartissez autrement certaines tâches.</div>`;
+  else if (projet.taches.length && b.eleves.every(x => Math.abs(x.h - b.lim) < 1e-9)) h += `<div class="alerte ok">✓ Planning complet : chaque élève a exactement ${b.lim} h de travail prévues.</div>`;
+  if (b.nonAffecte.length) h += `<div class="alerte warn">${b.nonAffecte.length} tâche${b.nonAffecte.length > 1 ? 's n’ont' : ' n’a'} pas de responsable.</div>`;
+  h += `<div class="bilan">` + b.eleves.map(x => {
+    const pct = Math.min(100, x.h / b.lim * 100), cls = x.h > b.lim + 1e-9 ? 'trop' : x.h < b.lim - 1e-9 ? 'sous' : '';
+    return `<div class="bilan-ligne"><span>${esc(x.nom)}</span><div class="jauge" title="${fmtH(x.h)} / ${b.lim} h"><span class="${cls}" style="width:${pct}%"></span></div><b class="${cls}">${fmtH(x.h)} / ${b.lim} h</b></div>`;
+  }).join('') + `</div><p class="aide">Les tâches « Toute l'équipe » (${fmtH(b.equipe)}) comptent pour chaque élève. Total de toutes les tâches : ${fmtH(b.total)}.</p>`;
+  return h;
+}
+
+function ongletPlanning(c) {
+  const N = NIVEAUX[projet.niveau];
+  c.innerHTML = `<p class="intro">Listez les tâches du projet avec leur responsable, leur durée en heures et la semaine où elles commencent.
+    Chaque élève dispose de <b>${N.heures} h</b> de projet. Le diagramme de Gantt se construit automatiquement.</p>
+    <div class="carte"><h2>Contrôle des heures</h2><div id="bilan"></div></div>
+    <div class="carte"><h2>Tâches du projet</h2>
+      <div class="ligne-champs" style="max-width:640px">
+        <div class="champ"><label for="p-hps">Heures de projet par semaine</label><input type="number" id="p-hps" min="0.5" step="0.5" value="${esc(projet.planning.hps)}"></div>
+        <div class="champ"><label for="p-sem">Nombre de semaines</label><input type="number" id="p-sem" min="1" step="1" value="${esc(projet.planning.semaines)}"></div>
+      </div>
+      <div id="ed-taches"></div>
+      <p><button class="btn secondaire" id="btn-csv">⬇ Exporter le tableau (CSV pour tableur)</button></p></div>
+    <div class="carte"><div class="diag-barre" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><h2 style="flex:1;margin:0">Diagramme de Gantt</h2>
+      <button class="btn secondaire" id="btn-imp-planning">🖨️ Imprimer le planning</button></div>
+      <div class="defile" id="gantt" style="margin-top:.6rem"></div><div id="legende" class="aide" style="margin-top:.5rem"></div></div>`;
+  const maj = () => {
+    $('#bilan').innerHTML = htmlBilan(bilanHeures());
+    $('#gantt').innerHTML = svgGantt();
+    $('#legende').innerHTML = [...projet.eleves.map(e => e.uid), 'equipe'].map(r => `<span style="display:inline-flex;align-items:center;gap:.3rem;margin-right:1rem"><span style="width:.9rem;height:.9rem;border-radius:3px;background:${couleurResponsable(r)}"></span>${esc(nomResponsable(r))}</span>`).join('');
+    majEntete();
+  };
+  editeurListe($('#ed-taches'), {
+    items: projet.taches, ajouter: 'Ajouter une tâche',
+    nouveau: () => {
+      const der = projet.taches[projet.taches.length - 1];
+      return { uid: uid(), nom: '', responsable: '', duree: '', semaine: der ? Math.max(1, Math.round(nombre(der.semaine)) || 1) : 1 };
+    },
+    colonnes: [
+      { k:'nom', label:'Tâche', ph:'Ex. : Étude des solutions' },
+      { k:'responsable', label:'Responsable', type:'select', largeur:'11rem', structurel:true,
+        options: () => [['', '— choisir —'], ...projet.eleves.map(e => [e.uid, nomResponsable(e.uid)]), ['equipe', "Toute l'équipe"]] },
+      { k:'duree', label:'Durée (h)', type:'number', step:0.5, largeur:'6rem' },
+      { k:'semaine', label:'Semaine (début)', type:'number', min:1, largeur:'6.5rem' }
+    ],
+    onChange: () => { modifie(); maj(); }
+  });
+  $('#p-hps').oninput = e => { projet.planning.hps = nombre(e.target.value) || ''; modifie(); maj(); };
+  $('#p-sem').oninput = e => { projet.planning.semaines = Math.round(nombre(e.target.value)) || ''; modifie(); maj(); };
+  $('#btn-csv').onclick = exporterCSV;
+  $('#btn-imp-planning').onclick = () => imprimer('planning');
+  maj();
+}
+
+/* Export du planning au format CSV (séparateur « ; », lisible par Excel / LibreOffice) */
+function exporterCSV() {
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lignes = [['Tâche', 'Responsable', 'Durée (h)', 'Semaine de début'].map(q).join(';')];
+  projet.taches.forEach(t => lignes.push([t.nom, nomResponsable(t.responsable), String(t.duree).replace('.', ','), t.semaine].map(q).join(';')));
+  telecharger(`taches-${slug(projet.fiche.intitule)}.csv`, '﻿' + lignes.join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+/* =====================================================================
+   15. FICHE OFFICIELLE : aperçu et impression PDF
+   ===================================================================== */
+const val = v => v && String(v).trim() ? esc(v) : '<span class="f-vide">Non renseigné</span>';
+const bloc = (lab, v, style = '') => `<div class="f-bloc"${style ? ` style="${style}"` : ''}><div class="f-lab">${esc(lab)}</div><div class="f-val">${val(v)}</div></div>`;
+const blocDiag = (lab, nom) => `<div class="f-bloc f-diag"><div class="f-lab">${esc(lab)}</div><div class="f-val">${svgDiagramme(nom)}</div></div>`;
+
+function entete(titre, sousTitre, page, total) {
+  return `<div class="f-entete"><div class="f-logo">${esc(NIVEAUX[projet.niveau].label)}</div>
+    <div class="f-titre"><b>${esc(titre)}</b><span>${esc(sousTitre)}</span></div>
+    <div class="f-page">Page ${page} / ${total}</div></div>`;
+}
+const pied = () => `<div class="f-pied"><span>${esc(projet.fiche.intitule || '')}</span><span>Édité le ${new Date().toLocaleDateString('fr-FR')}</span></div>`;
+
+/* --- Fiche Première (modèle « Serre automatique ») --- */
+function feuillesPremiere(avecPlanning) {
+  const f = projet.fiche, ops = projet.options;
+  const pages = [];
+  const titre = 'Fiche de définition du projet', st = `Enseignement de spécialité I2D — Projet de ${NIVEAUX.premiere.heures} h`;
+  pages.push(total => `
+    ${entete(titre, st, 1, total)}
+    <table class="f-tab">
+      <tr><th>Intitulé du projet</th><td colspan="3"><b>${val(f.intitule)}</b></td></tr>
+      <tr><th>Effectif du groupe</th><td style="width:30mm">${projet.eleves.length} élève${projet.eleves.length > 1 ? 's' : ''}</td><th style="width:28mm">Lycée</th><td>${val(f.lycee)}</td></tr>
+      <tr><th>Enseignant responsable</th><td colspan="3">${val(f.enseignant)}</td></tr>
+      <tr><th>Thème sociétal</th><td colspan="3">${val(f.theme)}</td></tr>
+    </table>
+    ${bloc('Besoin initial', f.besoin)}
+    ${bloc('Finalité du produit', f.finalite)}
+    ${bloc('Problème technique à résoudre', f.probleme)}
+    ${bloc('Production finale attendue', f.production)}
+    <table class="f-tab"><thead><tr><th style="width:24mm">Élève</th><th>Répartition des tâches</th>${DOMAINES.map(d => `<th style="width:19mm">${d}</th>`).join('')}</tr></thead><tbody>
+      ${Array.from({ length: MAX_ELEVES }, (_, i) => {
+        const e = projet.eleves[i];
+        return `<tr><td><b>Élève ${i + 1}</b>${e && e.nom ? '<br>' + esc(e.nom) : ''}</td><td style="white-space:pre-wrap">${e ? esc(e.tache) : ''}</td>${DOMAINES.map(d => `<td class="f-x">${e && e.domaine === d ? '✕' : ''}</td>`).join('')}</tr>`;
+      }).join('')}
+    </tbody></table>
+    ${pied()}`);
+  if (ops.diagrammes) {
+    pages.push(total => `${entete(titre, 'Diagrammes SysML', 2, total)}${blocDiag("Diagramme de cas d'utilisation", 'cas')}${blocDiag('Diagramme de contexte', 'contexte')}${pied()}`);
+    pages.push(total => `${entete(titre, 'Diagrammes SysML', 3, total)}${blocDiag("Diagramme d'exigences", 'exigences')}${pied()}`);
+  }
+  if (avecPlanning) pages.push((total, n) => feuillePlanning(n, total));
+  return pages;
+}
+
+/* --- Fiche Terminale 2I2D (v3, 3 pages) --- */
+function feuillesTerminale() {
+  const f = projet.fiche;
+  const titre = 'Fiche de présentation du projet de 2I2D', st = 'Baccalauréat technologique STI2D — Enseignement spécifique 2I2D';
+  const them = f.thematique === 'Autre' ? 'Autre : ' + (f.thematiqueAutre || '…') : f.thematique;
+  const cpt = compterSpecialites();
+  return [
+    total => `${entete(titre, st, 1, total)}
+      <table class="f-tab">
+        <tr><th>Session</th><td>${val(f.session)}</td><th style="width:44mm">Code UAI de l'établissement</th><td>${val(f.uai)}</td></tr>
+        <tr><th>Intitulé du projet</th><td colspan="3"><b>${val(f.intitule)}</b></td></tr>
+        <tr><th>Thématique</th><td colspan="3">${val(them)}</td></tr>
+        <tr><th>Professeurs responsables</th><td colspan="3">${val(f.professeurs)}</td></tr>
+      </table>
+      ${bloc('Besoin initial', f.besoin)}
+      ${bloc('Finalité en lien avec la thématique', f.finalite)}
+      ${bloc('Problème technique à résoudre', f.probleme)}
+      ${blocDiag("Diagramme de cas d'utilisation", 'cas')}
+      ${pied()}`,
+    total => `${entete(titre, st, 2, total)}${blocDiag('Diagramme de contexte', 'contexte')}${blocDiag("Diagramme d'exigences", 'exigences')}${pied()}`,
+    total => `${entete(titre, st, 3, total)}
+      <table class="f-tab"><thead><tr><th>Effectif de l'équipe</th>${SPECIALITES.map(s => `<th>${s}</th>`).join('')}</tr></thead>
+        <tbody><tr><td class="c"><b>${projet.eleves.length}</b> élève${projet.eleves.length > 1 ? 's' : ''}</td>${SPECIALITES.map(s => `<td class="c">${cpt[s]}</td>`).join('')}</tr></tbody></table>
+      ${bloc('Production finale attendue', f.production)}
+      ${bloc('Liens avec la physique-chimie et/ou les mathématiques (STEM)', f.stem)}
+      <table class="f-tab"><thead><tr><th style="width:18mm">Élève</th><th style="width:38mm">Nom</th><th style="width:20mm">Spécialité</th><th>Tâche de l'élève</th></tr></thead><tbody>
+        ${Array.from({ length: MAX_ELEVES }, (_, i) => {
+          const e = projet.eleves[i];
+          return `<tr><td class="c"><b>${i + 1}</b></td><td>${e ? esc(e.nom) : ''}</td><td class="c">${e ? esc(e.specialite) : ''}</td><td style="white-space:pre-wrap;height:15mm">${e ? esc(e.tache) : ''}</td></tr>`;
+        }).join('')}
+      </tbody></table>
+      ${pied()}`
+  ];
+}
+
+/* --- Feuille « Planning » (annexe ou impression seule) --- */
+function feuillePlanning(n, total) {
+  const b = bilanHeures();
+  return `${entete('Planning des tâches', `${NIVEAUX[projet.niveau].label} — ${b.lim} h par élève — ${fmtH(nombre(projet.planning.hps))} par semaine`, n, total)}
+    <div class="f-bloc"><div class="f-lab">Diagramme de Gantt</div><div class="f-val" style="padding:1.5mm">${svgGantt(true)}</div></div>
+    <table class="f-tab"><thead><tr><th>Élève</th><th>Heures prévues</th><th>Heures disponibles</th><th>Écart</th></tr></thead><tbody>
+      ${b.eleves.map(x => `<tr><td>${esc(x.nom)}</td><td class="c">${fmtH(x.h)}</td><td class="c">${b.lim} h</td><td class="c"${x.h > b.lim ? ' style="color:#b00;font-weight:700"' : ''}>${x.h > b.lim ? '+' : ''}${fmtH(x.h - b.lim)}</td></tr>`).join('')}
+    </tbody></table>${pied()}`;
+}
+
+/* Construit le HTML de toutes les feuilles A4 */
+function htmlFeuilles(mode) {
+  let pages;
+  if (mode === 'planning') pages = [(t, n) => feuillePlanning(n, t)];
+  else pages = projet.niveau === 'premiere' ? feuillesPremiere(projet.options.planning) : feuillesTerminale();
+  return pages.map((p, i) => `<section class="feuille">${p(pages.length, i + 1)}</section>`).join('');
+}
+
+/* Lance l'impression (le navigateur propose « Enregistrer au format PDF ») */
+let impressionPreparee = false;
+function imprimer(mode) {
+  $('#impression').innerHTML = htmlFeuilles(mode);
+  impressionPreparee = true;
+  setTimeout(() => { window.print(); impressionPreparee = false; }, 50);
+}
+// Ctrl+P sans passer par le bouton : on prépare la fiche quand même
+window.addEventListener('beforeprint', () => { if (projet && !impressionPreparee) $('#impression').innerHTML = htmlFeuilles('fiche'); });
+
+/* Champs trop longs : risque de texte coupé sur la fiche imprimée */
+function champsTropLongs() {
+  return CHAMPS[projet.niveau].flatMap(s => s.champs).filter(d => d.max && (projet.fiche[d.k] || '').length > d.max).map(d => d.label);
+}
+
+function ongletExport(c) {
+  const ter = projet.niveau === 'terminale';
+  const longs = champsTropLongs();
+  c.innerHTML = `<div class="carte"><h2>Export PDF de la fiche officielle</h2>
+      <p class="aide">Cliquez sur « Imprimer / Enregistrer en PDF », puis choisissez <b>« Enregistrer au format PDF »</b> comme imprimante.
+      Pour un résultat fidèle : format A4, marges « Aucune » ou « Par défaut », et cochez « Graphiques d'arrière-plan » si l'option existe.</p>
+      ${ter ? `<p class="aide">Modèle Terminale : 3 pages (identification et cas d'utilisation ; contexte et exigences ; équipe, production, STEM et tâches).</p>` : `
+      <p><label><input type="checkbox" id="o-diag" ${projet.options.diagrammes ? 'checked' : ''}> Ajouter les diagrammes SysML (2 pages)</label><br>
+         <label><input type="checkbox" id="o-plan" ${projet.options.planning ? 'checked' : ''}> Ajouter le planning en annexe</label></p>`}
+      ${longs.length ? `<div class="alerte warn">Certains textes dépassent la longueur conseillée et risquent d'être coupés sur la fiche : ${longs.map(esc).join(', ')}.</div>` : ''}
+      <p style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn grand" id="btn-imp">🖨️ Imprimer / Enregistrer en PDF</button>
+        <button class="btn secondaire grand" id="btn-imp-pl">🖨️ Planning seul</button>
+        <button class="btn secondaire grand" id="btn-json2">💾 Exporter le projet (JSON)</button></p></div>
+    <div class="carte"><h2>Aperçu</h2><div class="apercu" id="apercu"></div></div>`;
+  const majApercu = () => { $('#apercu').innerHTML = htmlFeuilles('fiche'); };
+  majApercu();
+  if (!ter) {
+    $('#o-diag').onchange = e => { projet.options.diagrammes = e.target.checked; sauver(); majApercu(); };
+    $('#o-plan').onchange = e => { projet.options.planning = e.target.checked; sauver(); majApercu(); };
+  }
+  $('#btn-imp').onclick = () => imprimer('fiche');
+  $('#btn-imp-pl').onclick = () => imprimer('planning');
+  $('#btn-json2').onclick = exporterJSON;
+}
+
+/* =====================================================================
+   16. DÉMARRAGE
+   ===================================================================== */
+/* Installation sur tablette (application web installable) :
+   uniquement quand l'appli est servie en https (ou sur localhost), pas en fichier local. */
+function activerInstallation() {
+  if (!/^https?:$/.test(location.protocol)) return;
+  [['manifest', 'manifest.webmanifest'], ['apple-touch-icon', 'icones/apple-touch-icon.png'], ['icon', 'icones/icone-192.png']].forEach(([rel, href]) => {
+    const l = document.createElement('link'); l.rel = rel; l.href = href; document.head.appendChild(l);
+  });
+  if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Demande au navigateur de ne pas effacer les données (projets) en cas de manque de place
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+}
+
+(async function demarrer() {
+  appliquerTheme(themeInitial());
+  activerInstallation();
+  serveurDisponible = await detecterServeur();
+  const param = new URLSearchParams(location.search).get('projet');
+  if (param && serveurDisponible && await ouvrirDepuisServeur(param)) return;
+  afficherAccueil();
+})();
+</script>
+</body>
+</html>
