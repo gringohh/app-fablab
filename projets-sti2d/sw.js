@@ -9,7 +9,7 @@
   - Les adresses /api/ (mode serveur du lycée) ne sont jamais mises en cache.
   - Aucune donnée de projet ne transite par ici : les projets restent dans le navigateur.
 */
-const CACHE = 'projets-sti2d-v1';
+const CACHE = 'projets-sti2d-v2';   // changer ce numéro force la mise à jour des fichiers gardés en cache
 const FICHIERS = ['./', 'index.html', 'manifest.webmanifest',
   'icones/icone-192.png', 'icones/icone-512.png', 'icones/icone-maskable-512.png', 'icones/apple-touch-icon.png'];
 
