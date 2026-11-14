@@ -129,6 +129,16 @@ table.tl td.num,table.tl th.num{width:1.8rem;color:var(--muted);text-align:cente
 table.tl td.act{white-space:nowrap;width:1%}
 table.tl td.vide{color:var(--muted);text-align:center;font-style:italic;padding:1rem}
 table.tl textarea{min-height:2.6rem}
+.fiches{display:grid;gap:.7rem;margin-bottom:.7rem}
+.fiche{border:1px solid var(--border);border-radius:10px;background:var(--surface2);padding:.6rem .75rem .75rem}
+.fiche-tete{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
+.fiche-num{flex:1;font-weight:700;color:var(--primary)}
+.fiche-actions{display:flex;gap:.3rem}
+.fiche-champs{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.55rem .75rem}
+.fiche-champ.pleine{grid-column:1/-1}
+.fiche-lab{display:block;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-bottom:.15rem}
+.fiche textarea{min-height:3.2rem}
+.vide-fiches{color:var(--muted);font-style:italic;text-align:center;margin:.5rem 0}
 .puces{display:flex;flex-wrap:wrap;gap:.3rem}
 .puce{white-space:nowrap;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:.15rem .6rem;font-size:.83rem;cursor:pointer}
 .puce.on{background:var(--primary-soft);color:var(--primary);border-color:var(--primary);font-weight:600}
@@ -362,7 +372,7 @@ function projetVide(niveau) {
     taches: [],         // {uid, nom, responsable (uid élève | 'equipe' | ''), duree, semaine}
     planning: { hps: N.hps, semaines: N.semaines },
     positions: { exigences:{}, cas:{}, contexte:{} },  // positions déplacées à la souris
-    options: { diagrammes: true, planning: false, dispoEx: 'auto' }, // options d'impression et de disposition
+    options: { diagrammes: true, planning: false },     // options d'impression (Première)
     envoi: { equipe: '' }                                // nom d'équipe pour le mode serveur
   };
 }
@@ -375,7 +385,7 @@ function normaliser(p) {
   r.fiche = Object.assign(projetVide(p.niveau).fiche, p.fiche || {});
   r.planning = Object.assign(base.planning, p.planning || {});
   r.positions = Object.assign({ exigences:{}, cas:{}, contexte:{} }, p.positions || {});
-  r.options = Object.assign({ diagrammes:true, planning:false, dispoEx:'auto' }, p.options || {});
+  r.options = Object.assign({ diagrammes:true, planning:false }, p.options || {});
   r.envoi = Object.assign({ equipe:'' }, p.envoi || {});
   ['eleves','exigences','acteurs','cas','contexte','taches'].forEach(k => {
     r[k] = Array.isArray(p[k]) ? p[k].filter(x => x && typeof x === 'object') : base[k];
@@ -794,9 +804,21 @@ function editeurListe(cont, cfg) {
   /* Redessine le tableau en conservant le champ qui avait le focus */
   const rendre = () => {
     const actif = document.activeElement, focus = cont.contains(actif) && actif.dataset.k
-      ? { i: actif.closest('tr')?.dataset.i, k: actif.dataset.k, s: actif.selectionStart, e: actif.selectionEnd } : null;
+      ? { i: actif.closest('[data-i]')?.dataset.i, k: actif.dataset.k, s: actif.selectionStart, e: actif.selectionEnd } : null;
     const cols = cfg.colonnes, n = cfg.items.length;
-    let h = `<div class="liste"><table class="tl"><thead><tr><th class="num">#</th>${cols.map(c => `<th${c.largeur ? ` style="width:${c.largeur}"` : ''}>${esc(c.label)}</th>`).join('')}<th class="act"></th></tr></thead><tbody>`;
+    const boutons = i => `<button type="button" class="ico" data-act="haut" title="Monter" aria-label="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="ico" data-act="bas" title="Descendre" aria-label="Descendre" ${i === n - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="ico danger" data-act="suppr" title="Supprimer" aria-label="Supprimer">✕</button>`;
+    let h;
+    if (cfg.cartes) {
+      /* Mode « fiches » : une petite fiche par ligne, chaque champ avec son titre (lisible sur tablette) */
+      h = `<div class="fiches">` + cfg.items.map((it, i) => `<div class="fiche" data-i="${i}">
+          <div class="fiche-tete"><span class="fiche-num">${esc(cfg.nomLigne || 'Ligne')} ${i + 1}</span><span class="fiche-actions">${boutons(i)}</span></div>
+          <div class="fiche-champs">${cols.map(c => `<div class="fiche-champ${c.type === 'textarea' || c.type === 'puces' || c.pleine ? ' pleine' : ''}">
+            <span class="fiche-lab">${esc(c.label)}</span>${cellule(c, it)}</div>`).join('')}</div></div>`).join('') +
+        (n ? '' : `<p class="vide-fiches">Aucune ligne pour l'instant : touchez « ${esc(cfg.ajouter || 'Ajouter')} ».</p>`) + `</div>`;
+    } else {
+    h = `<div class="liste"><table class="tl"><thead><tr><th class="num">#</th>${cols.map(c => `<th${c.largeur ? ` style="width:${c.largeur}"` : ''}>${esc(c.label)}</th>`).join('')}<th class="act"></th></tr></thead><tbody>`;
     cfg.items.forEach((it, i) => {
       h += `<tr data-i="${i}"><td class="num">${i + 1}</td>${cols.map(c => `<td data-label="${esc(c.label)}">${cellule(c, it)}</td>`).join('')}
         <td class="act"><button type="button" class="ico" data-act="haut" title="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
@@ -804,12 +826,14 @@ function editeurListe(cont, cfg) {
         <button type="button" class="ico danger" data-act="suppr" title="Supprimer la ligne">✕</button></td></tr>`;
     });
     if (!n) h += `<tr><td colspan="${cols.length + 2}" class="vide">Aucune ligne pour l'instant : cliquez sur « ${esc(cfg.ajouter || 'Ajouter')} ».</td></tr>`;
+    h += `</tbody></table></div>`;
+    }
     const plein = cfg.max && n >= cfg.max;
-    h += `</tbody></table></div><button type="button" class="btn secondaire" data-act="ajout" ${plein ? 'disabled' : ''}>＋ ${esc(cfg.ajouter || 'Ajouter une ligne')}</button>
+    h += `<button type="button" class="btn secondaire" data-act="ajout" ${plein ? 'disabled' : ''}>＋ ${esc(cfg.ajouter || 'Ajouter une ligne')}</button>
           ${plein ? `<span class="aide"> (maximum ${cfg.max})</span>` : ''}`;
     cont.innerHTML = h;
     if (focus) {
-      const el = cont.querySelector(`tr[data-i="${focus.i}"] [data-k="${focus.k}"]`);
+      const el = cont.querySelector(`[data-i="${focus.i}"] [data-k="${focus.k}"]`);
       if (el && el.tagName !== 'BUTTON') { el.focus(); try { if (focus.s != null) el.setSelectionRange(focus.s, focus.e); } catch (e) {} }
     }
   };
@@ -817,7 +841,7 @@ function editeurListe(cont, cfg) {
   const colonne = k => cfg.colonnes.find(c => c.k === k);
   // Saisie : on modifie l'objet sans redessiner (le focus est conservé)
   cont.oninput = e => {
-    const el = e.target, tr = el.closest('tr[data-i]'); if (!tr || !el.dataset.k || el.dataset.act) return;
+    const el = e.target, tr = el.closest('[data-i]'); if (!tr || !el.dataset.k || el.dataset.act) return;
     const c = colonne(el.dataset.k), it = cfg.items[+tr.dataset.i];
     it[c.k] = c.type === 'number' ? (el.value === '' ? '' : nombre(el.value)) : el.value;
     cfg.onChange(false);
@@ -830,7 +854,7 @@ function editeurListe(cont, cfg) {
   };
   cont.onclick = e => {
     const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
-    const tr = b.closest('tr[data-i]'), i = tr ? +tr.dataset.i : -1, it = cfg.items;
+    const tr = b.closest('[data-i]'), i = tr ? +tr.dataset.i : -1, it = cfg.items;
     switch (b.dataset.act) {
       case 'ajout': it.push(cfg.nouveau()); break;
       case 'suppr': it.splice(i, 1); break;
@@ -843,7 +867,7 @@ function editeurListe(cont, cfg) {
       }
     }
     rendre(); cfg.onChange(true);
-    if (b.dataset.act === 'ajout') { const champ = cont.querySelector(`tr[data-i="${it.length - 1}"] input, tr[data-i="${it.length - 1}"] textarea`); if (champ) champ.focus(); }
+    if (b.dataset.act === 'ajout') { const champ = cont.querySelector(`[data-i="${it.length - 1}"] input, [data-i="${it.length - 1}"] textarea`); if (champ) champ.focus(); }
   };
   rendre();
   return { rendre };
@@ -1029,49 +1053,78 @@ function etiquette(txt, x, y) {
     lignes.map((l, i) => `<text class="dg-t petit" x="${x.toFixed(1)}" y="${(y - h / 2 + 12 + i * 13).toFixed(1)}" text-anchor="middle">${esc(l)}</text>`).join('');
 }
 
-/* ---------- Diagramme d'exigences ---------- */
+/* ---------- Diagramme d'exigences ----------
+   Hiérarchie de haut en bas : l'exigence mère est au-dessus de ses exigences filles.
+   Les liens sont tracés à angles droits (« en peigne ») et ne passent jamais sous une case :
+   - les filles qui ont elles-mêmes des filles sont alignées sur une rangée, reliées par une barre horizontale ;
+   - les filles « feuilles » (sans descendance) sont empilées de part et d'autre d'un tronc vertical,
+     ce qui garde le diagramme compact et lisible sur une feuille A4. */
 function construireExigences() {
   const ex = projet.exigences, parUid = {}; ex.forEach(e => parUid[e.uid] = e);
-  const W = 214;
+  const W = 200, ECART = 26, VG = 54, TRONC = 22;   // largeur des cases, écarts horizontal / vertical, demi-écart du tronc
   const noeuds = ex.map(e => {
     const corps = [`Id = "${e.id || '?'}"`];
-    couper('Texte = « ' + (e.texte || '…') + ' »', 31).forEach(l => corps.push(l));
-    if (e.critere) couper('Critère : ' + e.critere, 31).forEach(l => corps.push(l));
-    if (e.niveau) couper('Niveau : ' + e.niveau, 31).forEach(l => corps.push(l));
+    couper('Texte = « ' + (e.texte || '…') + ' »', 29).forEach(l => corps.push(l));
+    if (e.critere) couper('Critère : ' + e.critere, 29).forEach(l => corps.push(l));
+    if (e.niveau) couper('Niveau : ' + e.niveau, 29).forEach(l => corps.push(l));
     return { key: e.uid, e, forme: 'rect', w: W, h: 38 + corps.length * HL + 8, corps };
   });
-  // Arborescence : le « parent » d'une exigence est l'exigence avec laquelle elle est en relation
+  const parKey = {}; noeuds.forEach(n => parKey[n.key] = n);
+  const raffine = k => parKey[k].e.typeRel === 'raffinement';
+  // Arborescence : le « parent » d'une exigence est son exigence mère
   const parent = n => { const r = n.e.relation; return r && r !== n.e.uid && parUid[r] ? r : null; };
   const enfants = {}; noeuds.forEach(n => enfants[n.key] = []);
-  noeuds.forEach(n => { const p = parent(n); if (p) enfants[p].push(n.key); });
-  const parKey = {}; noeuds.forEach(n => parKey[n.key] = n);
-  /* Disposition : « haut » = arbre de haut en bas, « gauche » = arbre de gauche à droite
-     (plus compact sur une feuille A4 en portrait). En automatique, on passe à l'horizontal
-     dès que l'arbre a plus de 4 feuilles. */
-  const place = {}, vu = new Set(); let col = 0, yCur = 0;
-  const feuilles = noeuds.filter(n => !enfants[n.key].length).length;
-  let dispo = projet.options.dispoEx || 'auto';
-  if (dispo === 'auto') dispo = feuilles > 4 ? 'gauche' : 'haut';
-  const placer = (k, d) => {
-    vu.add(k);
-    const ks = enfants[k].filter(x => !vu.has(x));
-    ks.forEach(x => vu.add(x));                       // évite les boucles
-    if (!ks.length) { place[k] = { col: col++, d, y: yCur + parKey[k].h / 2 }; yCur += parKey[k].h + 22; }
-    else {
-      ks.forEach(x => placer(x, d + 1));
-      const a = place[ks[0]], b = place[ks[ks.length - 1]];
-      place[k] = { col: (a.col + b.col) / 2, d, y: (a.y + b.y) / 2 };
+  const vu = new Set();
+  // Construction de l'arbre sans boucle (une exigence n'est rattachée qu'une fois)
+  const racines = noeuds.filter(n => !parent(n)).map(n => n.key);
+  const relier = k => { vu.add(k); noeuds.forEach(n => { if (parent(n) === k && !vu.has(n.key)) { enfants[k].push(n.key); relier(n.key); } }); };
+  racines.forEach(relier);
+  noeuds.forEach(n => { if (!vu.has(n.key)) { racines.push(n.key); relier(n.key); } });   // exigences prises dans une boucle
+
+  /* 1) Mesure : largeur occupée par chaque sous-arbre et organisation de ses filles */
+  const orga = {};
+  const mesurer = k => {
+    const ks = enfants[k];
+    const feuilles = ks.filter(c => !enfants[c].length && !raffine(c));
+    const bloc = feuilles.length >= 2 ? feuilles : [];
+    const creneaux = ks.filter(c => !bloc.includes(c)).map(c => ({ type: 'arbre', k: c, w: mesurer(c) }));
+    if (bloc.length) {
+      const cols = bloc.length >= 3 ? 2 : 1;
+      creneaux.push({ type: 'bloc', ks: bloc, cols, w: cols === 2 ? 2 * W + 2 * TRONC : W + TRONC + 10 });
     }
+    const wRang = creneaux.reduce((s, c) => s + c.w, 0) + ECART * Math.max(0, creneaux.length - 1);
+    orga[k] = { creneaux, wRang, w: Math.max(W, wRang) };
+    return orga[k].w;
   };
-  noeuds.filter(n => !parent(n)).forEach(n => placer(n.key, 0));
-  noeuds.forEach(n => { if (!vu.has(n.key)) placer(n.key, 0); });   // éléments pris dans une boucle
-  // Hauteur de chaque niveau = hauteur du plus grand nœud du niveau
-  const hNiv = []; noeuds.forEach(n => { const d = place[n.key].d; hNiv[d] = Math.max(hNiv[d] || 0, n.h); });
-  const yNiv = []; let y = 0; hNiv.forEach((h, d) => { yNiv[d] = y + h / 2; y += h + 70; });
+  /* 2) Placement (positions par défaut) */
+  const defaut = {}, cote = {};
+  const placer = (k, x0, yTop) => {
+    const o = orga[k], n = parKey[k];
+    defaut[k] = { x: x0 + o.w / 2, y: yTop + n.h / 2 };
+    const yF = yTop + n.h + VG;
+    let x = x0 + (o.w - o.wRang) / 2;
+    o.creneaux.forEach(c => {
+      if (c.type === 'arbre') placer(c.k, x, yF);
+      else {
+        let y = yF;
+        for (let i = 0; i < c.ks.length; i += c.cols) {
+          const rang = c.ks.slice(i, i + c.cols), h = Math.max(...rang.map(r => parKey[r].h));
+          rang.forEach((r, j) => {
+            if (c.cols === 2) { cote[r] = j ? 'd' : 'g'; defaut[r] = { x: j ? x + W + 2 * TRONC + W / 2 : x + W / 2, y: y + parKey[r].h / 2 }; }
+            else { cote[r] = 'd'; defaut[r] = { x: x + TRONC + 10 + W / 2, y: y + parKey[r].h / 2 }; }
+          });
+          y += h + 18;
+        }
+      }
+      x += c.w + ECART;
+    });
+  };
+  let xr = 0;
+  racines.forEach(k => { mesurer(k); placer(k, xr, 0); xr += orga[k].w + ECART * 2; });
+
+  /* 3) Positions finales (les cases déplacées à la souris gardent leur place) et dessin des cases */
   noeuds.forEach(n => {
-    const pl = place[n.key];
-    const p = dispo === 'gauche' ? pos('exigences', n.key, pl.d * (W + 80), pl.y)
-                                 : pos('exigences', n.key, pl.col * (W + 36), yNiv[pl.d]);
+    const p = pos('exigences', n.key, defaut[n.key].x, defaut[n.key].y);
     n.x = p.x; n.y = p.y;
     const x0 = n.x - W / 2, y0 = n.y - n.h / 2;
     n.svg = `<rect class="dg-forme" x="${x0}" y="${y0}" width="${W}" height="${n.h}" rx="2"/>
@@ -1080,8 +1133,49 @@ function construireExigences() {
       <text class="dg-t gras" x="${n.x}" y="${y0 + 29}" text-anchor="middle">Exigence ${esc(n.e.id || '')}</text>
       ${texteSVG(n.corps, x0 + 8, y0 + 52, 'dg-t', 'start')}`;
   });
-  const liens = noeuds.filter(n => parent(n)).map(n => ({ de: n.key, a: parent(n), type: n.e.typeRel === 'raffinement' ? 'raffinement' : 'composition' }));
-  return { noeuds, liens, cadre: 'req [Exigences] ' + (projet.fiche.intitule || 'Système'),
+
+  /* 4) Liens à angles droits */
+  const f = v => Math.round(v * 10) / 10;
+  const haut = k => parKey[k].y - parKey[k].h / 2, bas = k => parKey[k].y + parKey[k].h / 2;
+  let traits = '';
+  Object.keys(orga).forEach(k => {
+    const P = parKey[k], o = orga[k]; if (!o.creneaux.length) return;
+    const arbres = o.creneaux.filter(c => c.type === 'arbre').map(c => c.k);
+    const comp = arbres.filter(c => !raffine(c)), ref = arbres.filter(raffine);
+    const bloc = (o.creneaux.find(c => c.type === 'bloc') || {}).ks || [];
+    const yb = bas(k);
+    const tops = [...arbres, ...bloc].map(haut);
+    const yBarre = f(yb + Math.max(14, (Math.min(...tops) - yb) / 2));   // hauteur de la barre horizontale
+    const decal = ref.length && (comp.length || bloc.length) ? 26 : 0;
+    // Composition : un seul symbole ⊕ sous l'exigence mère, puis peigne vers les filles
+    if (comp.length || bloc.length) {
+      const ax = f(P.x - decal), xs = [ax];
+      let d = '';
+      comp.forEach(c => { xs.push(parKey[c].x); d += `M${f(parKey[c].x)} ${yBarre}V${f(haut(c))}`; });
+      if (bloc.length) {
+        // Tronc vertical entre les deux colonnes de feuilles, branches horizontales vers chaque case
+        const bords = bloc.map(r => cote[r] === 'g' ? parKey[r].x + W / 2 + TRONC : parKey[r].x - W / 2 - TRONC);
+        const tx = f(bords.reduce((s, v) => s + v, 0) / bords.length);
+        xs.push(tx);
+        d += `M${tx} ${yBarre}V${f(Math.max(...bloc.map(r => parKey[r].y)))}`;
+        bloc.forEach(r => { d += `M${tx} ${f(parKey[r].y)}H${f(cote[r] === 'g' ? parKey[r].x + W / 2 : parKey[r].x - W / 2)}`; });
+      }
+      d = `M${ax} ${f(yb + 14)}V${yBarre}M${f(Math.min(...xs))} ${yBarre}H${f(Math.max(...xs))}` + d;
+      traits += `<path class="dg-trait" d="${d}"/>
+        <circle class="dg-vide" cx="${ax}" cy="${f(yb + 7)}" r="7"/><path class="dg-trait" d="M${ax - 7} ${f(yb + 7)}H${ax + 7}M${ax} ${f(yb)}V${f(yb + 14)}"/>`;
+    }
+    // Raffinement : trait pointillé, flèche ouverte vers l'exigence mère, stéréotype «refine»
+    if (ref.length) {
+      const ax = f(P.x + decal), yR = f(yBarre + (decal ? 12 : 0));
+      const xs = [ax, ...ref.map(c => parKey[c].x)];
+      let d = `M${ax} ${f(yb)}V${yR}M${f(Math.min(...xs))} ${yR}H${f(Math.max(...xs))}`;
+      ref.forEach(c => { d += `M${f(parKey[c].x)} ${yR}V${f(haut(c))}`; });
+      traits += `<path class="dg-trait pointille" d="${d}"/>
+        <path class="dg-trait" d="M${ax - 6} ${f(yb + 11)}L${ax} ${f(yb)}L${ax + 6} ${f(yb + 11)}"/>` +
+        etiquette('«refine»', ax + 30, f((yb + yR) / 2 + 2));
+    }
+  });
+  return { noeuds, liens: [], fond: traits, cadre: 'req [Exigences] ' + (projet.fiche.intitule || 'Système'),
            vide: ex.length ? '' : 'Ajoutez des exigences pour voir le diagramme.' };
 }
 
@@ -1236,8 +1330,6 @@ function monterDiagramme(svg, nom) {
 function carteDiagramme(titre, nom) {
   return `<div class="carte diag-carte colle">
     <div class="diag-barre"><h3>${esc(titre)}</h3>
-      ${nom === 'exigences' ? `<select id="dispo-ex" style="width:auto" title="Disposition de l'arbre">
-        ${[['auto', 'Disposition auto'], ['haut', 'De haut en bas'], ['gauche', 'De gauche à droite']].map(([v, l]) => `<option value="${v}"${projet.options.dispoEx === v ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
       <button class="btn secondaire" data-reorg="${nom}" title="Revenir à la mise en page automatique">↺ Réorganiser</button>
       <button class="btn secondaire" data-svg="${nom}" title="Télécharger l'image du diagramme">⬇ SVG</button></div>
     <svg class="diagramme" id="svg-${nom}" role="img" aria-label="${esc(titre)}"></svg>
@@ -1266,22 +1358,21 @@ function ongletExigences(c) {
     <b>composition</b> (l'exigence fait partie de l'exigence mère) ou <b>raffinement</b> (elle la précise).</p>
     <div class="grille2"><div class="carte"><h2>Liste des exigences</h2><div id="ed-ex"></div></div>${carteDiagramme("Diagramme d'exigences", 'exigences')}</div>`;
   const redessiner = brancherCarteDiagramme(c, 'exigences');
-  $('#dispo-ex').onchange = e => { projet.options.dispoEx = e.target.value; projet.positions.exigences = {}; redessiner(false); sauver(); };
   const ed = editeurListe($('#ed-ex'), {
-    items: projet.exigences, ajouter: 'Ajouter une exigence',
+    items: projet.exigences, ajouter: 'Ajouter une exigence', cartes: true, nomLigne: 'Exigence',
     nouveau: () => {
       const racine = projet.exigences[0];
       return { uid: uid(), id: proposerId(), texte: '', critere: '', niveau: '', relation: racine ? racine.uid : '', typeRel: 'composition' };
     },
     colonnes: [
-      { k:'id', label:'Id', ph:'1.1', largeur:'4.5rem', structurel:true },
-      { k:'texte', label:'Texte', type:'textarea', ph:'Le système doit…' },
-      { k:'critere', label:'Critère', ph:'Ex. : Température', largeur:'16%' },
-      { k:'niveau', label:'Niveau', ph:'Ex. : 18 à 26 °C', largeur:'14%' },
-      { k:'relation', label:'Exigence mère', type:'select', largeur:'8rem', structurel:true,
-        options: it => [['', '— aucune —'], ...projet.exigences.filter(e => e.uid !== it.uid).map(e => [e.uid, e.id || '(sans Id)'])] },
-      { k:'typeRel', label:'Relation', type:'select', largeur:'8.5rem', structurel:true,
-        options: () => [['composition', 'Composition'], ['raffinement', 'Raffinement']] }
+      { k:'id', label:'Id', ph:'1.1', structurel:true },
+      { k:'relation', label:'Exigence mère', type:'select', structurel:true,
+        options: it => [['', '— aucune —'], ...projet.exigences.filter(e => e.uid !== it.uid).map(e => [e.uid, 'Exigence ' + (e.id || '(sans Id)')])] },
+      { k:'typeRel', label:'Relation', type:'select', structurel:true,
+        options: () => [['composition', 'Composition'], ['raffinement', 'Raffinement']] },
+      { k:'texte', label:'Texte de l’exigence', type:'textarea', ph:'Le système doit…' },
+      { k:'critere', label:'Critère', ph:'Ex. : Température' },
+      { k:'niveau', label:'Niveau', ph:'Ex. : 18 à 26 °C' }
     ],
     onChange: (structurel) => { modifie(); redessiner(false); }
   });
@@ -1315,10 +1406,10 @@ function ongletCas(c) {
     }
   });
   edCas = editeurListe($('#ed-cas'), {
-    items: projet.cas, ajouter: "Ajouter un cas d'utilisation",
+    items: projet.cas, ajouter: "Ajouter un cas d'utilisation", cartes: true, nomLigne: "Cas d'utilisation",
     nouveau: () => ({ uid: uid(), nom: '', acteurs: projet.acteurs.length === 1 ? [projet.acteurs[0].uid] : [] }),
     colonnes: [
-      { k:'nom', label:"Cas d'utilisation", ph:'Ex. : Régler les consignes', largeur:'42%' },
+      { k:'nom', label:"Nom du cas d'utilisation", ph:'Ex. : Régler les consignes', pleine:true },
       { k:'acteurs', label:'Acteurs reliés', type:'puces', vide:"Ajoutez d'abord des acteurs.", options: () => projet.acteurs.map(a => [a.uid, a.nom]) }
     ],
     onChange: () => { modifie(); redessiner(false); }
@@ -1332,12 +1423,12 @@ function ongletContexte(c) {
     <div class="grille2"><div class="carte"><h2>Éléments extérieurs</h2><div id="ed-ctx"></div></div>${carteDiagramme('Diagramme de contexte', 'contexte')}</div>`;
   const redessiner = brancherCarteDiagramme(c, 'contexte');
   editeurListe($('#ed-ctx'), {
-    items: projet.contexte, ajouter: 'Ajouter un élément',
+    items: projet.contexte, ajouter: 'Ajouter un élément', cartes: true, nomLigne: 'Élément',
     nouveau: () => ({ uid: uid(), nom: '', categorie: 'utilisateur', interaction: '' }),
     colonnes: [
-      { k:'nom', label:'Élément', ph:'Ex. : Soleil', largeur:'34%' },
-      { k:'categorie', label:'Catégorie', type:'select', largeur:'8.5rem', options: () => Object.entries(CATEGORIES_CTX) },
-      { k:'interaction', label:'Interaction (texte du lien)', ph:'Ex. : éclaire, chauffe' }
+      { k:'nom', label:'Nom de l’élément', ph:'Ex. : Soleil' },
+      { k:'categorie', label:'Catégorie', type:'select', options: () => Object.entries(CATEGORIES_CTX) },
+      { k:'interaction', label:'Interaction (texte écrit sur le lien)', ph:'Ex. : éclaire, chauffe', pleine:true }
     ],
     onChange: () => { modifie(); redessiner(false); }
   });
