@@ -1,5 +1,7 @@
 # Tableau de bord des projets STI2D
 
+**Auteur : H. Hammadou** — © 2026, tous droits réservés (voir [LICENCE](LICENCE)).
+
 Application pour remplir la fiche de projet, générer les diagrammes SysML et le planning, puis imprimer la fiche officielle en PDF.
 
 ## 1. Version fichier unique (hors ligne)
@@ -34,3 +36,7 @@ Le pare-feu Windows peut demander d'autoriser Python sur le réseau privé.
 ## Personnalisation
 
 La liste des thématiques de Terminale, les spécialités, les domaines et les heures par niveau sont définis en tête du script de `index.html` (section « CONSTANTES »).
+
+## Droits d'auteur
+
+© 2026 H. Hammadou – Tous droits réservés. Toute reproduction, modification ou redistribution, totale ou partielle, sans l'accord écrit de l'auteur est interdite.

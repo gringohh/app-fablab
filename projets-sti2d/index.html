@@ -3,10 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="H. Hammadou">
+<meta name="copyright" content="© 2026 H. Hammadou – Tous droits réservés">
 <title>Projets STI2D</title>
 <!--
   Tableau de bord des projets STI2D
   ---------------------------------
+  © 2026 H. Hammadou – Tous droits réservés.
+  Toute reproduction, modification ou redistribution sans l'accord de l'auteur est interdite.
+
   Application autonome (un seul fichier HTML, aucune dépendance externe).
   - Fonctionne hors ligne : il suffit d'ouvrir ce fichier dans un navigateur.
   - Peut aussi être servie sur le réseau du lycée par « serveur.py ».
@@ -184,6 +189,7 @@ svg.gantt{width:100%;height:auto;display:block;background:var(--dg-bg);border:1p
 .toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:.6rem 1rem;border-radius:10px;
   box-shadow:var(--shadow);z-index:100;max-width:90vw;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.visible{opacity:1}
+.credit{text-align:center;color:var(--muted);font-size:.8rem;margin:1.5rem 0 0}
 
 /* =========================================================
    3. FEUILLES A4 (aperçu à l'écran + impression PDF)
@@ -241,6 +247,7 @@ svg.gantt{width:100%;height:auto;display:block;background:var(--dg-bg);border:1p
 /* =====================================================================
    1. CONSTANTES ET RÉFÉRENTIELS
    ===================================================================== */
+const CREDIT = '© 2026 H. Hammadou – Tous droits réservés'; // mention de propriété affichée dans l'application
 const APP_ID = 'sti2d-projets';          // identifiant écrit dans les fichiers JSON
 const VERSION_FORMAT = 1;                 // version du format de fichier
 const CLE_STOCKAGE = 'sti2d-projet-courant';
@@ -667,6 +674,7 @@ function afficherAccueil() {
       <button class="btn secondaire grand" data-action="ouvrir">📂 Ouvrir un projet enregistré</button>
     </div>
     <p class="aide" style="text-align:center">🔒 Vos données restent sur cet ordinateur : rien n'est envoyé sur Internet.${serveurDisponible ? ' Connecté au serveur du lycée : vous pourrez envoyer votre projet au professeur.' : ''}</p>
+    <p class="credit">${CREDIT}</p>
   </div>`;
   appliquerTheme(document.documentElement.getAttribute('data-theme'));
   $('#app').onclick = e => {
@@ -704,7 +712,8 @@ function ouvrirProjet(p) {
       </div>
     </div>
     <nav class="onglets" id="onglets">${ONGLETS.map(([k, l]) => `<button class="onglet" data-onglet="${k}">${l}<span class="pastille" data-pastille="${k}"></span></button>`).join('')}</nav>
-    <main id="contenu"></main>`;
+    <main id="contenu"></main>
+    <p class="credit" style="margin-bottom:1.5rem">${CREDIT}</p>`;
   appliquerTheme(document.documentElement.getAttribute('data-theme'));
   $('#btn-theme').onclick = basculerTheme;
   $('#barre').onclick = e => {

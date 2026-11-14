@@ -4,6 +4,9 @@
 Serveur local des projets STI2D
 ===============================
 
+© 2026 H. Hammadou – Tous droits réservés.
+Toute reproduction, modification ou redistribution sans l'accord de l'auteur est interdite.
+
 Petit serveur à lancer sur le PC du professeur. Il utilise uniquement la
 bibliothèque standard de Python 3 (aucune installation nécessaire).
 
@@ -180,6 +183,7 @@ th{{font-size:.8rem;text-transform:uppercase;color:var(--muted)}} td.c{{text-ali
 <div class="carte"><table>
 <thead><tr><th>Équipe</th><th>Niveau</th><th>Intitulé</th><th>Élèves</th><th>Exigences</th><th>Tâches</th><th>Heures</th><th>Reçu le</th><th></th></tr></thead>
 <tbody>{corps}</tbody></table></div>
+<p style="text-align:center;font-size:.8rem">© 2026 H. Hammadou – Tous droits réservés</p>
 </main></body></html>"""
 
 
