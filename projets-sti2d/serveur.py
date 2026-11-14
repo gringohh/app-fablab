@@ -54,6 +54,17 @@ VERROU = threading.Lock()             # évite que deux envois simultanés écri
 
 CONFIG = {"dossier": None, "mot_de_passe": None}
 
+# Fichiers annexes servis tels quels (liste fermée : aucun autre fichier n'est accessible)
+FICHIERS_STATIQUES = {
+    "/manifest.webmanifest": "application/manifest+json",
+    "/sw.js": "text/javascript; charset=utf-8",
+    "/icones/icone.svg": "image/svg+xml",
+    "/icones/icone-192.png": "image/png",
+    "/icones/icone-512.png": "image/png",
+    "/icones/icone-maskable-512.png": "image/png",
+    "/icones/apple-touch-icon.png": "image/png",
+}
+
 
 # --------------------------------------------------------------------------
 # Outils
@@ -256,6 +267,13 @@ class Gestionnaire(BaseHTTPRequestHandler):
                 return
             self.envoyer(200, fichier.read_bytes(), "application/json; charset=utf-8",
                          {"Content-Disposition": f'attachment; filename="{nom}"'})
+        elif chemin in FICHIERS_STATIQUES:
+            # Fichiers de l'installation sur tablette (manifeste, service worker, icônes)
+            fichier = DOSSIER_APP / chemin.lstrip("/")
+            if fichier.is_file():
+                self.envoyer(200, fichier.read_bytes(), FICHIERS_STATIQUES[chemin])
+            else:
+                self.envoyer(404, "<h1>Fichier introuvable</h1>")
         elif chemin == "/favicon.ico":
             self.envoyer(204, b"")
         else:

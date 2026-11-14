@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="author" content="H. Hammadou">
+<!-- Tablette / installation sur l'écran d'accueil -->
+<meta name="theme-color" content="#1d5fc4">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Projets STI2D">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="copyright" content="© 2026 H. Hammadou – Tous droits réservés">
 <title>Projets STI2D</title>
 <!--
@@ -79,6 +85,13 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ico:hover{color:var(--text);background:var(--surface2)}
 .ico.danger:hover{color:var(--danger);background:var(--danger-soft)}
 .ico:disabled{opacity:.35;cursor:default}
+/* Écrans tactiles (tablettes) : zones à toucher plus grandes */
+@media (pointer:coarse){
+  .ico{width:2.4rem;height:2.4rem;font-size:1rem}
+  .btn{padding:.6rem 1rem}
+  .puce{padding:.35rem .8rem}
+  input[type=text],input[type=number],select,textarea{font-size:16px;padding:.55rem .65rem} /* 16 px : évite le zoom auto d'iOS */
+}
 
 /* Onglets */
 .onglets{display:flex;gap:.25rem;padding:.5rem 1rem 0;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;position:sticky;top:var(--h-barre,52px);z-index:19}
@@ -117,7 +130,7 @@ table.tl td.act{white-space:nowrap;width:1%}
 table.tl td.vide{color:var(--muted);text-align:center;font-style:italic;padding:1rem}
 table.tl textarea{min-height:2.6rem}
 .puces{display:flex;flex-wrap:wrap;gap:.3rem}
-.puce{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:.15rem .6rem;font-size:.83rem;cursor:pointer}
+.puce{white-space:nowrap;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:.15rem .6rem;font-size:.83rem;cursor:pointer}
 .puce.on{background:var(--primary-soft);color:var(--primary);border-color:var(--primary);font-weight:600}
 @media (max-width:700px){
   table.tl thead{display:none}
@@ -1305,7 +1318,7 @@ function ongletCas(c) {
     items: projet.cas, ajouter: "Ajouter un cas d'utilisation",
     nouveau: () => ({ uid: uid(), nom: '', acteurs: projet.acteurs.length === 1 ? [projet.acteurs[0].uid] : [] }),
     colonnes: [
-      { k:'nom', label:"Cas d'utilisation", ph:'Ex. : Régler les consignes', largeur:'50%' },
+      { k:'nom', label:"Cas d'utilisation", ph:'Ex. : Régler les consignes', largeur:'42%' },
       { k:'acteurs', label:'Acteurs reliés', type:'puces', vide:"Ajoutez d'abord des acteurs.", options: () => projet.acteurs.map(a => [a.uid, a.nom]) }
     ],
     onChange: () => { modifie(); redessiner(false); }
@@ -1595,8 +1608,21 @@ function ongletExport(c) {
 /* =====================================================================
    16. DÉMARRAGE
    ===================================================================== */
+/* Installation sur tablette (application web installable) :
+   uniquement quand l'appli est servie en https (ou sur localhost), pas en fichier local. */
+function activerInstallation() {
+  if (!/^https?:$/.test(location.protocol)) return;
+  [['manifest', 'manifest.webmanifest'], ['apple-touch-icon', 'icones/apple-touch-icon.png'], ['icon', 'icones/icone-192.png']].forEach(([rel, href]) => {
+    const l = document.createElement('link'); l.rel = rel; l.href = href; document.head.appendChild(l);
+  });
+  if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Demande au navigateur de ne pas effacer les données (projets) en cas de manque de place
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+}
+
 (async function demarrer() {
   appliquerTheme(themeInitial());
+  activerInstallation();
   serveurDisponible = await detecterServeur();
   const param = new URLSearchParams(location.search).get('projet');
   if (param && serveurDisponible && await ouvrirDepuisServeur(param)) return;

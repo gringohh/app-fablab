@@ -1,0 +1,17 @@
+{
+  "name": "Tableau de bord des projets STI2D",
+  "short_name": "Projets STI2D",
+  "description": "Fiche projet, diagrammes SysML, planning et export PDF pour les projets STI2D. © 2026 H. Hammadou",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f5f9",
+  "theme_color": "#1d5fc4",
+  "icons": [
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icones/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -33,6 +33,28 @@ Options : `--port 8000`, `--dossier chemin/des/projets`, `--local` (tests sur ce
 
 Le pare-feu Windows peut demander d'autoriser Python sur le réseau privé.
 
+## 3. Sur tablette (iPad, Android)
+
+L'application s'adapte à l'écran et les diagrammes se manipulent au doigt. Trois façons de l'utiliser :
+
+**a) Installée sur l'écran d'accueil (recommandé, fonctionne ensuite hors ligne)**
+L'application doit être publiée en https, par exemple avec GitHub Pages (gratuit) :
+1. Sur GitHub : *Settings* → *Pages* → *Source : Deploy from a branch* → branche `main`, dossier `/ (root)` → *Save*.
+2. Après une ou deux minutes, l'adresse est : `https://<compte>.github.io/app-fablab/projets-sti2d/`
+3. Sur la tablette, ouvrir cette adresse puis :
+   - **iPad (Safari)** : bouton Partager → « Sur l'écran d'accueil » ;
+   - **Android (Chrome)** : menu ⋮ → « Installer l'application ».
+
+L'icône « Projets STI2D » apparaît ; l'application s'ouvre en plein écran, même sans Internet. Les projets restent enregistrés sur la tablette (rien n'est envoyé en ligne). Les mises à jour publiées sur GitHub arrivent automatiquement au lancement suivant.
+
+**b) Par le serveur du lycée** : ouvrir `http://<adresse-du-PC>:8000/` dans le navigateur de la tablette (même réseau Wi-Fi). Le bouton « Envoyer au professeur » fonctionne ; en revanche l'usage hors ligne nécessite la méthode a).
+
+**c) Fichier local** : possible sur Android (ouvrir `index.html` avec Chrome ou Firefox), peu pratique sur iPad.
+
+Conseils tablette :
+- **PDF** : bouton « Imprimer / Enregistrer en PDF » ; sur iPad, dans l'aperçu d'impression, utiliser Partager → « Enregistrer dans Fichiers ».
+- **Sauvegarde** : exporter régulièrement le projet en JSON (Fichiers / Téléchargements). Sur iPad, Safari peut effacer les données d'un site non installé après plusieurs semaines sans utilisation : l'installation sur l'écran d'accueil (méthode a) évite ce problème.
+
 ## Personnalisation
 
 La liste des thématiques de Terminale, les spécialités, les domaines et les heures par niveau sont définis en tête du script de `index.html` (section « CONSTANTES »).
