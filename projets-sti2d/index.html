@@ -6,6 +6,7 @@
 <meta name="author" content="H. Hammadou">
 <!-- Tablette / installation sur l'écran d'accueil -->
 <meta name="theme-color" content="#1d5fc4">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22110%22%20fill%3D%22%231d5fc4%22/%3E%3Crect%20x%3D%22118%22%20y%3D%2296%22%20width%3D%22276%22%20height%3D%22330%22%20rx%3D%2226%22%20fill%3D%22%23fff%22/%3E%3Crect%20x%3D%22190%22%20y%3D%2270%22%20width%3D%22132%22%20height%3D%2254%22%20rx%3D%2216%22%20fill%3D%22%230f3d85%22/%3E%3Crect%20x%3D%22158%22%20y%3D%22168%22%20width%3D%22120%22%20height%3D%2234%22%20rx%3D%2210%22%20fill%3D%22%232f9c6a%22/%3E%3Crect%20x%3D%22206%22%20y%3D%22226%22%20width%3D%22140%22%20height%3D%2234%22%20rx%3D%2210%22%20fill%3D%22%23d9722f%22/%3E%3Crect%20x%3D%22250%22%20y%3D%22284%22%20width%3D%22110%22%20height%3D%2234%22%20rx%3D%2210%22%20fill%3D%22%239a55c9%22/%3E%3Crect%20x%3D%22170%22%20y%3D%22342%22%20width%3D%22160%22%20height%3D%2234%22%20rx%3D%2210%22%20fill%3D%22%231d5fc4%22/%3E%3C/svg%3E">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Projets STI2D">
@@ -65,6 +66,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* Barre du haut */
 .barre{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border);
   display:flex;align-items:center;gap:.5rem;padding:.55rem 1rem;flex-wrap:wrap}
+.barre .logo svg{width:1.6rem;height:1.6rem;vertical-align:-.45rem;margin-right:.4rem}
+.logo-accueil svg{width:84px;height:84px;display:block;margin:0 auto .6rem;filter:drop-shadow(0 4px 10px rgba(0,0,0,.18))}
 .barre .logo{font-weight:800;letter-spacing:.02em;color:var(--primary);cursor:pointer;white-space:nowrap}
 .barre .titre-projet{flex:1;min-width:8rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .barre .titre-projet small{display:inline-block;margin-left:.5rem;color:var(--muted);font-weight:500}
@@ -270,6 +273,8 @@ svg.gantt{width:100%;height:auto;display:block;background:var(--dg-bg);border:1p
 /* =====================================================================
    1. CONSTANTES ET RÉFÉRENTIELS
    ===================================================================== */
+/* Logo de l'application (version réduite, sans texte) */
+const LOGO = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="110" fill="#1d5fc4"/><rect x="118" y="96" width="276" height="330" rx="26" fill="#fff"/><rect x="190" y="70" width="132" height="54" rx="16" fill="#0f3d85"/><rect x="158" y="168" width="120" height="34" rx="10" fill="#2f9c6a"/><rect x="206" y="226" width="140" height="34" rx="10" fill="#d9722f"/><rect x="250" y="284" width="110" height="34" rx="10" fill="#9a55c9"/><rect x="170" y="342" width="160" height="34" rx="10" fill="#1d5fc4"/></svg>';
 const CREDIT = '© 2026 H. Hammadou – Tous droits réservés'; // mention de propriété affichée dans l'application
 const APP_ID = 'sti2d-projets';          // identifiant écrit dans les fichiers JSON
 const VERSION_FORMAT = 1;                 // version du format de fichier
@@ -668,6 +673,7 @@ function afficherAccueil() {
   <div class="accueil">
     <div style="text-align:right"><button class="btn discret" id="btn-theme" title="Mode clair / sombre">🌙</button></div>
     <header>
+      <div class="logo-accueil">${LOGO}</div>
       <h1>Tableau de bord des projets STI2D</h1>
       <p>Remplissez la fiche de votre projet, obtenez automatiquement les diagrammes SysML et le planning, puis imprimez la fiche officielle en PDF.</p>
     </header>
@@ -723,7 +729,7 @@ function ouvrirProjet(p) {
   projet = p; ongletActif = 'fiche';
   $('#app').innerHTML = `
     <div class="barre" id="barre">
-      <span class="logo" data-action="accueil" title="Retour à l'accueil">◆ Projets STI2D</span>
+      <span class="logo" data-action="accueil" title="Retour à l'accueil">${LOGO}Projets STI2D</span>
       <span class="titre-projet" id="titre-projet"></span>
       <span class="etat-sauvegarde" id="etat-sauvegarde">✓ Enregistré dans ce navigateur</span>
       <div class="actions">
@@ -1666,7 +1672,7 @@ function ongletExport(c) {
    uniquement quand l'appli est servie en https (ou sur localhost), pas en fichier local. */
 function activerInstallation() {
   if (!/^https?:$/.test(location.protocol)) return;
-  [['manifest', 'manifest.webmanifest'], ['apple-touch-icon', 'icones/apple-touch-icon.png'], ['icon', 'icones/icone-192.png']].forEach(([rel, href]) => {
+  [['manifest', 'manifest.webmanifest'], ['apple-touch-icon', 'icones/apple-touch-icon.png']].forEach(([rel, href]) => {
     const l = document.createElement('link'); l.rel = rel; l.href = href; document.head.appendChild(l);
   });
   if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
