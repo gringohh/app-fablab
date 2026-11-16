@@ -47,8 +47,8 @@ from urllib.parse import quote, unquote, urlparse
 DOSSIER_APP = Path(__file__).resolve().parent
 FICHIER_APP = DOSSIER_APP / "index.html"
 APP_ID = "sti2d-projets"              # identifiant présent dans les fichiers JSON de l'application
-NIVEAUX = {"premiere": "Première STI2D", "terminale": "Terminale 2I2D"}
-HEURES = {"premiere": 36, "terminale": 72}
+NIVEAUX = {"seconde": "Seconde SI-CIT", "premiere": "Première STI2D", "terminale": "Terminale 2I2D"}
+HEURES = {"seconde": 12, "premiere": 36, "terminale": 72}
 TAILLE_MAX = 3 * 1024 * 1024          # taille maximale d'un projet envoyé (3 Mo)
 VERROU = threading.Lock()             # évite que deux envois simultanés écrivent le même fichier
 
@@ -104,6 +104,11 @@ def adresses_locales():
 def bilan_heures(projet):
     """Renvoie la liste des élèves qui dépassent le nombre d'heures prévu (même règle que l'application)."""
     limite = HEURES.get(projet.get("niveau"), 0)
+    if projet.get("niveau") == "seconde":   # en Seconde, le professeur règle le nombre d'heures
+        try:
+            limite = float(str((projet.get("planning") or {}).get("heures") or limite).replace(",", ".")) or limite
+        except ValueError:
+            pass
     taches = projet.get("taches") or []
 
     def duree(t):
