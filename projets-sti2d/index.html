@@ -283,10 +283,39 @@ const VERSION_FORMAT = 1;                 // version du format de fichier
 const CLE_STOCKAGE = 'sti2d-projet-courant';
 const CLE_THEME = 'sti2d-theme';
 const MAX_ELEVES = 5;
+/* ----- Seconde SI-CIT : mini « Course en cours » sur toute l'année -----
+   Modifier ici le règlement, les logiciels proposés et le calendrier des séances. */
+const SECONDE = {
+  maxEleves: 6,                       // groupes de 4 à 6 élèves
+  voitureMax: 100,                    // longueur maximale de la voiture (mm)
+  standMax: 150,                      // stand : 150 × 150 × 150 mm maximum
+  logiciels: ['SolidWorks', 'SketchUp', 'Tinkercad', 'Imprimante 3D', 'Découpe laser', 'Outils d’atelier'],
+  // Séances : chaque vendredi, en alternant 1 h (semaine du 20/11/2026) et 2 h, jusqu'à mi-juin 2027
+  debut: '2026-11-20', fin: '2027-06-11', durees: [1, 2],
+  // Vendredis sans cours (zone B : vacances de Noël, d'hiver, de printemps, pont de l'Ascension)
+  sansCours: ['2026-12-25', '2027-01-01', '2027-02-26', '2027-03-05', '2027-04-23', '2027-04-30', '2027-05-07']
+};
+const maxEleves = () => projet && projet.niveau === 'seconde' ? SECONDE.maxEleves : MAX_ELEVES;
+
+/* Dates au format AAAA-MM-JJ (sans décalage de fuseau horaire) */
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const lireDate = iso => { const [a, m, j] = String(iso || '').split('-').map(Number); return a ? new Date(a, m - 1, j) : null; };
+const dateCourte = iso => { const d = lireDate(iso); return d ? d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '?'; };
+const dateLongue = iso => { const d = lireDate(iso); return d ? d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '?'; };
+
+/* Calendrier par défaut des séances de Seconde */
+function seancesParDefaut() {
+  const liste = [], d = lireDate(SECONDE.debut), fin = lireDate(SECONDE.fin);
+  for (let i = 0; d <= fin; i++, d.setDate(d.getDate() + 7)) {
+    const iso = isoDate(d);
+    if (!SECONDE.sansCours.includes(iso)) liste.push({ uid: uid(), date: iso, duree: SECONDE.durees[i % SECONDE.durees.length] });
+  }
+  return liste;
+}
 
 /* Paramètres propres à chaque niveau */
 const NIVEAUX = {
-  seconde:   { label:'Seconde SI-CIT', court:'Seconde', heures:12, hps:1.5, semaines:8, modele:'Fiche projet simplifiée (2 pages)', heuresReglables:true },
+  seconde:   { label:'Seconde SI-CIT', court:'Seconde', heures:0, hps:1.5, semaines:0, modele:'Fiche projet mini « Course en cours » (2 pages)' },
   premiere:  { label:'Première STI2D', court:'Première', heures:36, hps:3, semaines:12, modele:'Fiche de définition du projet (modèle « Serre automatique »)' },
   terminale: { label:'Terminale 2I2D', court:'Terminale', heures:72, hps:4, semaines:18, modele:'Fiche de présentation du projet de 2I2D (v3, 3 pages)' }
 };
@@ -312,7 +341,7 @@ const THEMATIQUES = [
 /* Catégories des éléments extérieurs du diagramme de contexte */
 const CATEGORIES_CTX = { utilisateur:'Utilisateur', energie:'Énergie', environnement:'Environnement', systeme:'Autre système' };
 /* Couleurs des responsables dans le diagramme de Gantt (la dernière = toute l'équipe) */
-const COULEURS = ['#2f6fd0', '#d9722f', '#2f9c6a', '#9a55c9', '#c9414f', '#6c7a8c'];
+const COULEURS = ['#2f6fd0', '#d9722f', '#2f9c6a', '#9a55c9', '#178f9e', '#6c7a8c', '#b5862a'];
 
 /* =====================================================================
    2. OUTILS GÉNÉRAUX
@@ -368,8 +397,8 @@ function nouvelEleve(niveau) {
 
 /* Nombre d'heures de projet par élève (réglable en Seconde, fixé par le programme ensuite) */
 function limiteHeures(p = projet) {
-  const N = NIVEAUX[p.niveau];
-  return N.heuresReglables ? (nombre(p.planning.heures) || N.heures) : N.heures;
+  if (p.niveau === 'seconde') return arrondi((p.seances || []).reduce((s, x) => s + nombre(x.duree), 0));   // toutes les séances de l'année
+  return NIVEAUX[p.niveau].heures;
 }
 
 function projetVide(niveau) {
@@ -378,13 +407,16 @@ function projetVide(niveau) {
     app: APP_ID, version: VERSION_FORMAT, niveau, modifie: Date.now(),
     fiche: { intitule:'', lycee:'', enseignant:'', theme:'', besoin:'', finalite:'', probleme:'', production:'',
              session:'', uai:'', thematique:'', thematiqueAutre:'', professeurs:'', stem:'',
-             classe:'', materiel:'', aQui:'', surQuoi:'', but:'' },   // les 5 derniers : Seconde
+             classe:'', materiel:'', aQui:'', surQuoi:'', but:'',             // Seconde
+             equipe:'', logiciels:[], voitureL:'', standL:'', standl:'', standH:'' },
     eleves: [nouvelEleve(niveau)],
     exigences: [],      // {uid, id, texte, critere, niveau, relation (uid parent), typeRel}
     acteurs: [],        // {uid, nom}
     cas: [],            // {uid, nom, acteurs:[uid]}
     contexte: [],       // {uid, nom, categorie, interaction}
     taches: [],         // {uid, nom, responsable (uid élève | 'equipe' | ''), duree, semaine}
+                        // Seconde : {uid, nom, eleves:[uid], outil, seance (uid), duree}
+    seances: niveau === 'seconde' ? seancesParDefaut() : [],   // Seconde : {uid, date, duree}
     planning: { hps: N.hps, semaines: N.semaines, heures: N.heures },
     positions: { exigences:{}, cas:{}, contexte:{} },  // positions déplacées à la souris
     options: { diagrammes: true, planning: false },     // options d'impression (Première)
@@ -407,6 +439,17 @@ function normaliser(p) {
     r[k].forEach(x => { if (!x.uid) x.uid = uid(); });
   });
   r.cas.forEach(c => { if (!Array.isArray(c.acteurs)) c.acteurs = []; });
+  if (r.niveau === 'seconde') {
+    if (!Array.isArray(r.fiche.logiciels)) r.fiche.logiciels = [];
+    r.seances = Array.isArray(p.seances) && p.seances.length ? p.seances.filter(x => x && x.date) : seancesParDefaut();
+    r.seances.forEach(x => { if (!x.uid) x.uid = uid(); });
+    // Anciennes tâches (responsable + semaine) converties au format Seconde (élèves + séance)
+    r.taches.forEach(t => {
+      if (!Array.isArray(t.eleves)) t.eleves = t.responsable === 'equipe' ? r.eleves.map(e => e.uid) : (t.responsable ? [t.responsable] : []);
+      if (!t.seance) { const i = Math.max(0, Math.round(nombre(t.semaine)) - 1); t.seance = (r.seances[Math.min(i, r.seances.length - 1)] || {}).uid || ''; }
+      if (t.outil == null) t.outil = '';
+    });
+  }
   if (!r.eleves.length) r.eleves = [nouvelEleve(r.niveau)];
   r.app = APP_ID; r.version = VERSION_FORMAT;
   return r;
@@ -415,42 +458,56 @@ function normaliser(p) {
 /* Fabrique une liste d'objets avec uid à partir d'un tableau simple */
 const avecUid = tab => tab.map(o => Object.assign({ uid: uid() }, o));
 
-/* ---------- Exemple Seconde : Distributeur automatique de croquettes ---------- */
+/* ---------- Exemple Seconde : mini « Course en cours » ---------- */
 function exempleSeconde() {
   const p = projetVide('seconde');
   p.fiche = Object.assign(p.fiche, {
-    intitule: 'Distributeur automatique de croquettes',
-    classe: '2de SI-CIT — groupe 2',
+    intitule: 'Mini Course en cours : le Bolide',
+    equipe: 'Les Bolides',
+    classe: '2de SI-CIT',
     enseignant: 'M. Bernard',
-    besoin: "Quand ses maîtres partent pour la journée ou le week-end, le chat ne peut pas être nourri à heures fixes.",
-    production: "Un distributeur qui verse automatiquement une dose de croquettes dans la gamelle, deux fois par jour, avec un réservoir imprimé en 3D et un moteur piloté par une carte programmable.",
-    materiel: "Carte Arduino, servomoteur, module horloge, bouton poussoir, imprimante 3D, contreplaqué 5 mm, découpe laser.",
-    aQui: 'Au propriétaire d’un animal',
-    surQuoi: 'Sur les croquettes (et la gamelle)',
-    but: "Nourrir l'animal à heures fixes, même en l'absence de son propriétaire."
+    besoin: "Participer à une course de mini-voitures entre équipes de la classe : concevoir et fabriquer la voiture la plus rapide, puis la présenter sur un stand.",
+    production: "Une mini-voiture de 100 mm de long au maximum, modélisée en 3D puis imprimée, et un stand de présentation de 150 × 150 × 150 mm, présentés lors de la course de fin d'année.",
+    materiel: 'Roues, axes et moteur fournis par le professeur, filament PLA, contreplaqué 3 mm.',
+    logiciels: ['SolidWorks', 'SketchUp', 'Tinkercad', 'Imprimante 3D', 'Découpe laser'],
+    voitureL: 96, standL: 150, standl: 140, standH: 120,
+    aQui: 'À l’équipe et au public de la course',
+    surQuoi: 'Sur la piste (la voiture s’y déplace)',
+    but: 'Parcourir la piste le plus vite possible en respectant le règlement.'
   });
   p.eleves = avecUid([
-    { nom:'Emma',  tache:'Dessiner et imprimer en 3D le réservoir à croquettes.' },
-    { nom:'Lucas', tache:'Réaliser le mécanisme qui libère une dose (moteur et trappe).' },
-    { nom:'Chloé', tache:'Programmer les heures de distribution sur la carte.' },
-    { nom:'Adam',  tache:'Fabriquer le support en bois et faire les essais.' }
+    { nom:'Emma',  tache:'Modélisation 3D de la carrosserie (SolidWorks).' },
+    { nom:'Lucas', tache:'Châssis : roues, axes et moteur.' },
+    { nom:'Chloé', tache:'Conception du stand (SketchUp).' },
+    { nom:'Adam',  tache:'Fabrication du stand (découpe laser).' },
+    { nom:'Inès',  tache:'Logo de l’équipe et décoration (Tinkercad).' }
   ]);
+  const [emma, lucas, chloe, adam, ines] = p.eleves.map(e => e.uid), tous = p.eleves.map(e => e.uid);
   p.contexte = avecUid([
-    { nom:'Propriétaire', categorie:'utilisateur', interaction:'remplit, règle les heures' },
-    { nom:'Chat', categorie:'utilisateur', interaction:'mange' },
-    { nom:'Croquettes', categorie:'environnement', interaction:'sont distribuées' },
-    { nom:'Prise électrique', categorie:'energie', interaction:'alimente' },
-    { nom:'Pièce de la maison', categorie:'environnement', interaction:'poussière, humidité' }
+    { nom:'Équipe', categorie:'utilisateur', interaction:'conçoit, lance la voiture' },
+    { nom:'Jury et public', categorie:'utilisateur', interaction:'regardent, évaluent' },
+    { nom:'Pile / batterie', categorie:'energie', interaction:'alimente le moteur' },
+    { nom:'Piste', categorie:'environnement', interaction:'guide la voiture' },
+    { nom:'Air', categorie:'environnement', interaction:'freine (aérodynamisme)' },
+    { nom:'Stand', categorie:'systeme', interaction:'présente la voiture' }
   ]);
-  // Planning : 8 semaines de 1 h 30 ; 12 h par élève
-  const t = [['Comprendre le besoin et faire la bête à cornes', 'equipe', 1.5, 1]];
-  const perso = ['Chercher des idées et faire un croquis', 'Fabriquer ma partie', 'Tester ma partie'];
-  p.eleves.forEach(e => {
-    t.push([perso[0], e.uid, 1.5, 2]); t.push([perso[1], e.uid, 4.5, 3]); t.push([perso[2], e.uid, 1.5, 6]);
-  });
-  t.push(['Assembler le distributeur', 'equipe', 1.5, 7]);
-  t.push(['Présenter le projet à la classe', 'equipe', 1.5, 8]);
-  p.taches = t.map(([nom, responsable, duree, semaine]) => ({ uid:uid(), nom, responsable, duree, semaine }));
+  // Tâches enchaînées sur les séances de l'année (le travail se fait en groupe, même si chacun a sa partie)
+  const S = p.seances;
+  const t = [
+    ['Découvrir le règlement et faire la bête à cornes', tous, '', 1, 0],
+    ['Croquis de la voiture et du stand', tous, '', 2, 1],
+    ['Prise en main des logiciels 3D', tous, 'Tinkercad', 3, 2],
+    ['Modéliser la carrosserie', [emma, lucas], 'SolidWorks', 6, 4],
+    ['Modéliser le stand', [chloe, adam], 'SketchUp', 6, 4],
+    ['Créer le logo de l’équipe', [ines], 'Tinkercad', 4, 4],
+    ['Imprimer la carrosserie en 3D', [emma, ines], 'Imprimante 3D', 3, 9],
+    ['Monter roues, axes et moteur', [lucas, adam], 'Outils d’atelier', 3, 9],
+    ['Découper et assembler le stand', [chloe, adam], 'Découpe laser', 4, 12],
+    ['Essais sur la piste et améliorations', tous, '', 6, 15],
+    ['Préparer la présentation et le stand', tous, '', 4, 19],
+    ['Course et présentation finale', tous, '', 2, S.length - 1]
+  ];
+  p.taches = t.map(([nom, eleves, outil, duree, i]) => ({ uid: uid(), nom, eleves: [...eleves], outil, duree, seance: S[Math.min(i, S.length - 1)].uid }));
   return p;
 }
 
@@ -733,11 +790,11 @@ function afficherAccueil() {
     <div class="niveaux">
       ${['seconde','premiere','terminale'].map(n => `
       <div class="carte niveau">
-        <div><span class="tag">${n === 'seconde' ? 'Version simplifiée' : `Projet de ${NIVEAUX[n].heures} h`}</span></div>
+        <div><span class="tag">${n === 'seconde' ? 'Toute l’année · simplifié' : `Projet de ${NIVEAUX[n].heures} h`}</span></div>
         <h2>${NIVEAUX[n].label}</h2>
         <ul>
           ${n === 'seconde'
-            ? `<li>Fiche courte : le besoin et ce qu'on va fabriquer</li><li>Bête à cornes et diagramme de contexte</li><li>Qui fait quoi, et un planning simple</li><li>Exemple : « Distributeur de croquettes »</li>`
+            ? `<li>Mini « Course en cours » sur toute l'année</li><li>Fiche courte, règlement (voiture 100 mm, stand 150 mm)</li><li>Bête à cornes et diagramme de contexte</li><li>Groupes de 4 à 6, planning des vendredis</li>`
             : n === 'premiere'
             ? `<li>Fiche de définition : thème sociétal, besoin, problème technique</li><li>Répartition des tâches par domaine (Énergie, Information, Matière)</li><li>Exemple : « Serre automatique »</li><li>Diagrammes SysML et planning de Gantt</li>`
             : `<li>Fiche de présentation 2I2D sur 3 pages</li><li>Équipe par spécialité (AC, EE, ITEC, SIN) et liens STEM</li><li>Exemple : « Maison autonome à énergie optimisée »</li><li>Diagrammes SysML et planning de Gantt</li>`}
@@ -816,7 +873,7 @@ function ouvrirProjet(p) {
 /* Met à jour le titre et les pastilles d'alerte des onglets */
 function majEntete() {
   const t = $('#titre-projet'); if (!t) return;
-  t.innerHTML = `${esc(projet.fiche.intitule || 'Projet sans titre')}<small>${NIVEAUX[projet.niveau].label} · ${limiteHeures()} h par élève</small>`;
+  t.innerHTML = `${esc(projet.fiche.intitule || 'Projet sans titre')}<small>${NIVEAUX[projet.niveau].label} · ${projet.niveau === 'seconde' ? `${limiteHeures()} h sur l'année` : `${limiteHeures()} h par élève`}</small>`;
   const b = bilanHeures();
   const p = document.querySelector('[data-pastille="planning"]');
   if (p) p.textContent = b.depassements.length ? ' ⚠' : '';
@@ -852,12 +909,14 @@ function editeurListe(cont, cfg) {
     switch (c.type) {
       case 'textarea': return `<textarea data-k="${c.k}" rows="2"${ph}>${esc(v)}</textarea>`;
       case 'number':   return `<input type="number" data-k="${c.k}" value="${esc(v)}" min="${c.min ?? 0}" step="${c.step ?? 1}"${ph}>`;
+      case 'date':     return `<input type="date" data-k="${c.k}" value="${esc(v)}">`;
       case 'select':   return `<select data-k="${c.k}">${c.options(it).map(([val, lab]) => `<option value="${esc(val)}"${String(val) === String(v) ? ' selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
       case 'puces': {
         const opts = c.options(it);
         if (!opts.length) return `<span class="aide">${esc(c.vide || 'Aucun choix disponible')}</span>`;
         const sel = Array.isArray(v) ? v : [];
-        return `<div class="puces">${opts.map(([val, lab]) => `<button type="button" class="puce${sel.includes(val) ? ' on' : ''}" data-act="puce" data-k="${c.k}" data-v="${esc(val)}" aria-pressed="${sel.includes(val)}">${esc(lab || '(sans nom)')}</button>`).join('')}</div>`;
+        const tous = c.tous ? `<button type="button" class="puce${opts.every(([val]) => sel.includes(val)) ? ' on' : ''}" data-act="puce-tous" data-k="${c.k}">Tout le groupe</button>` : '';
+        return `<div class="puces">${tous}${opts.map(([val, lab]) => `<button type="button" class="puce${sel.includes(val) ? ' on' : ''}" data-act="puce" data-k="${c.k}" data-v="${esc(val)}" aria-pressed="${sel.includes(val)}">${esc(lab || '(sans nom)')}</button>`).join('')}</div>`;
       }
       default: return `<input type="text" data-k="${c.k}" value="${esc(v)}"${ph}>`;
     }
@@ -922,6 +981,11 @@ function editeurListe(cont, cfg) {
       case 'suppr': it.splice(i, 1); break;
       case 'haut': [it[i - 1], it[i]] = [it[i], it[i - 1]]; break;
       case 'bas': [it[i + 1], it[i]] = [it[i], it[i + 1]]; break;
+      case 'puce-tous': {
+        const k = b.dataset.k, c = colonne(k), opts = c.options(it[i]).map(o => o[0]);
+        it[i][k] = opts.every(v => (it[i][k] || []).includes(v)) ? [] : [...opts];
+        break;
+      }
       case 'puce': {
         const k = b.dataset.k, v = b.dataset.v; const t = Array.isArray(it[i][k]) ? it[i][k] : (it[i][k] = []);
         const j = t.indexOf(v); if (j >= 0) t.splice(j, 1); else t.push(v);
@@ -943,13 +1007,22 @@ function editeurListe(cont, cfg) {
 const CHAMPS = {
   seconde: [
     { titre:'Notre projet', champs:[
-      { k:'intitule', label:'Nom du projet', ph:'Ex. : Distributeur automatique de croquettes', max:70 },
-      { k:'classe', label:'Classe / groupe', ph:'Ex. : 2de SI-CIT groupe 2', court:true },
+      { k:'intitule', label:'Nom du projet', ph:'Ex. : Mini Course en cours : le Bolide', max:70 },
+      { k:'equipe', label:'Nom de l’équipe', ph:'Ex. : Les Bolides', court:true },
+      { k:'classe', label:'Classe', ph:'Ex. : 2de SI-CIT', court:true },
       { k:'enseignant', label:'Professeur', ph:'Ex. : M. Bernard', court:true } ]},
     { titre:'Le besoin et notre réalisation', champs:[
       { k:'besoin', label:'Le besoin : quel problème veut-on résoudre ?', type:'textarea', max:300, aide:'Racontez la situation en une ou deux phrases.' },
-      { k:'production', label:'Ce que nous allons fabriquer', type:'textarea', max:350, aide:'Décrivez l’objet ou la maquette que vous présenterez à la fin.' },
-      { k:'materiel', label:'Matériel et machines prévus', type:'textarea', max:250, aide:'Ex. : imprimante 3D, carte Arduino, bois, moteur…' } ]}
+      { k:'production', label:'Ce que nous allons fabriquer', type:'textarea', max:350, aide:'La voiture et le stand que vous présenterez à la course.' } ]},
+    { titre:'Le règlement : nos dimensions', champs:[
+      { k:'voitureL', label:'Longueur de notre voiture (mm)', type:'nombre', court:true, aide:`${SECONDE.voitureMax} mm maximum`,
+        verif: v => v === '' || v == null ? '' : nombre(v) <= SECONDE.voitureMax ? '✓ Conforme au règlement' : `⚠ Trop long : ${SECONDE.voitureMax} mm maximum` },
+      ...[['standL', 'Longueur du stand (mm)'], ['standl', 'Largeur du stand (mm)'], ['standH', 'Hauteur du stand (mm)']].map(([k, label]) => (
+        { k, label, type:'nombre', court:true, aide:`${SECONDE.standMax} mm maximum`,
+          verif: v => v === '' || v == null ? '' : nombre(v) <= SECONDE.standMax ? '✓ Conforme' : `⚠ Trop grand : ${SECONDE.standMax} mm maximum` })) ]},
+    { titre:'Logiciels, machines et matériel', champs:[
+      { k:'logiciels', label:'Logiciels et machines utilisés par le groupe', type:'puces', options: SECONDE.logiciels, aide:'Touchez pour cocher ou décocher.' },
+      { k:'materiel', label:'Autre matériel', type:'textarea', max:250, aide:'Ex. : roues, moteur, filament, bois…' } ]}
   ],
   premiere: [
     { titre:'Identification du projet', champs:[
@@ -985,20 +1058,22 @@ function ongletFiche(c) {
   const f = projet.fiche;
   const champ = d => {
     if (d.si && !d.si(f)) return '';
-    const v = f[d.k] || '';
+    const v = Array.isArray(f[d.k]) ? '' : (f[d.k] ?? '');
     const cpt = d.max ? `<span class="compteur${v.length > d.max ? ' trop' : ''}" data-cpt="${d.k}">${v.length} / ${d.max}</span>` : '';
     let input;
     if (d.type === 'textarea') input = `<textarea id="f-${d.k}" data-k="${d.k}" rows="3">${esc(v)}</textarea>`;
+    else if (d.type === 'nombre') input = `<input type="number" id="f-${d.k}" data-k="${d.k}" value="${esc(v)}" min="0" step="1" inputmode="numeric">`;
+    else if (d.type === 'puces') input = `<div class="puces">${d.options.map(o => `<button type="button" class="puce${(f[d.k] || []).includes(o) ? ' on' : ''}" data-puce="${d.k}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>`;
     else if (d.type === 'select') input = `<select id="f-${d.k}" data-k="${d.k}"><option value="">— Choisir —</option>${d.options.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
     else input = `<input type="text" id="f-${d.k}" data-k="${d.k}" value="${esc(v)}" placeholder="${esc(d.ph || '')}">`;
     const err = d.verif ? d.verif(v) : '';
     return `<div class="champ"><label for="f-${d.k}">${esc(d.label)}${cpt}</label>${d.aide ? `<span class="aide">${esc(d.aide)}</span>` : ''}${input}
-      <span class="aide" data-err="${d.k}" style="color:var(--danger)">${esc(err)}</span></div>`;
+      <span class="aide" data-err="${d.k}" style="color:${err.startsWith('✓') ? 'var(--ok)' : 'var(--danger)'}">${esc(err)}</span></div>`;
   };
   const rendre = () => {
     c.innerHTML = `<p class="intro">Modèle : ${esc(NIVEAUX[projet.niveau].modele)}. Tout est enregistré automatiquement dans ce navigateur.
       ${projet.niveau === 'seconde' ? '' : projet.niveau === 'premiere' ? 'L\'effectif du groupe est calculé à partir de la liste des élèves (onglet « Équipe et tâches »).' : 'L\'effectif et la composition de l\'équipe sont calculés à partir de la liste des élèves (onglet « Équipe et tâches »).'}</p>` +
-      CHAMPS[projet.niveau].map(s => `<div class="carte"><h2>${esc(s.titre)}</h2><div class="${s.champs.some(x => x.court) ? 'ligne-champs' : ''}">${s.champs.map(champ).join('')}</div></div>`).join('');
+      CHAMPS[projet.niveau].map(s => `<div class="carte"><h2>${esc(s.titre)}</h2><div class="${s.champs.every(x => x.court || x.k === 'intitule') ? 'ligne-champs' : ''}">${s.champs.map(champ).join('')}</div></div>`).join('');
   };
   rendre();
   const def = k => CHAMPS[projet.niveau].flatMap(s => s.champs).find(d => d.k === k);
@@ -1006,11 +1081,19 @@ function ongletFiche(c) {
     const k = e.target.dataset.k; if (!k) return;
     f[k] = e.target.value;
     const d = def(k);
+    if (d.type === 'nombre') f[k] = e.target.value === '' ? '' : nombre(e.target.value);
     const cpt = c.querySelector(`[data-cpt="${k}"]`);
     if (cpt) { cpt.textContent = `${f[k].length} / ${d.max}`; cpt.classList.toggle('trop', f[k].length > d.max); }
-    if (d.verif) c.querySelector(`[data-err="${k}"]`).textContent = d.verif(f[k]);
+    if (d.verif) { const el = c.querySelector(`[data-err="${k}"]`), t = d.verif(f[k]); el.textContent = t; el.style.color = t.startsWith('✓') ? 'var(--ok)' : 'var(--danger)'; }
     if (k === 'thematique') { rendre(); $('#f-thematique').focus(); }
     modifie();
+  };
+  // Cases à cocher en « puces » (logiciels de la Seconde)
+  c.onclick = e => {
+    const b = e.target.closest('[data-puce]'); if (!b) return;
+    const k = b.dataset.puce, t = Array.isArray(f[k]) ? f[k] : (f[k] = []), i = t.indexOf(b.dataset.v);
+    if (i >= 0) t.splice(i, 1); else t.push(b.dataset.v);
+    b.classList.toggle('on', i < 0); modifie();
   };
 }
 
@@ -1041,7 +1124,7 @@ function ongletEquipe(c) {
     $('#synthese-equipe').innerHTML = h;
   };
   editeurListe($('#ed-eleves'), {
-    items: projet.eleves, max: MAX_ELEVES, ajouter: 'Ajouter un élève', nouveau: () => nouvelEleve(projet.niveau),
+    items: projet.eleves, max: maxEleves(), ajouter: 'Ajouter un élève', nouveau: () => nouvelEleve(projet.niveau),
     colonnes: ter ? [
       { k:'nom', label:'Nom de l’élève', ph:'Prénom NOM', largeur:'22%', structurel:true },
       { k:'specialite', label:'Spécialité', type:'select', options:() => SPECIALITES.map(s => [s, s]), largeur:'7.5rem', structurel:true },
@@ -1058,16 +1141,22 @@ function ongletEquipe(c) {
 
 /* Seconde : simplement le nom de chaque élève et ce qu'il fait */
 function ongletEquipeSeconde(c) {
-  c.innerHTML = `<p class="intro">Écrivez le prénom de chaque élève du groupe (5 au maximum) et ce dont il s'occupe dans le projet.</p>
+  c.innerHTML = `<p class="intro">Écrivez le prénom de chaque élève du groupe (4 à 6 élèves) et la partie dont il s'occupe.
+    Même si chacun a sa partie, le groupe travaille ensemble : les tâches communes se notent dans l'onglet Planning.</p>
     <div class="carte"><h2>Qui fait quoi ?</h2><div id="ed-eleves"></div></div>`;
   editeurListe($('#ed-eleves'), {
-    items: projet.eleves, max: MAX_ELEVES, ajouter: 'Ajouter un élève', nouveau: () => nouvelEleve(projet.niveau),
+    items: projet.eleves, max: maxEleves(), ajouter: 'Ajouter un élève', nouveau: () => nouvelEleve(projet.niveau),
     colonnes: [
       { k:'nom', label:'Prénom', ph:'Ex. : Emma', largeur:'25%', structurel:true },
-      { k:'tache', label:'Ce que je fais', type:'textarea', ph:'Ex. : je dessine et j’imprime le réservoir en 3D' }
+      { k:'tache', label:'Ma partie du projet', type:'textarea', ph:'Ex. : je modélise la carrosserie sur SolidWorks' }
     ],
-    onChange: () => modifie()
+    onChange: () => { modifie(); nb(); }
   });
+  const nb = () => {
+    const n = projet.eleves.length;
+    $('#nb-eleves').innerHTML = n < 4 ? `<div class="alerte warn">${n} élève${n > 1 ? 's' : ''} : les groupes sont de 4 à 6 élèves.</div>` : `<p class="aide">${n} élèves dans le groupe.</p>`;
+  };
+  c.insertAdjacentHTML('beforeend', '<div id="nb-eleves"></div>'); nb();
 }
 
 function compterSpecialites() {
@@ -1537,13 +1626,21 @@ function nomResponsable(r) {
 function couleurResponsable(r) {
   if (r === 'equipe') return COULEURS[5];
   const i = projet.eleves.findIndex(x => x.uid === r);
-  return i >= 0 ? COULEURS[i % 5] : '#9aa3ae';
+  const ELEVES_COULEURS = [0, 1, 2, 3, 4, 6];   // index dans COULEURS (le n° 5, gris, est réservé au groupe)
+  return i >= 0 ? COULEURS[ELEVES_COULEURS[i % ELEVES_COULEURS.length]] : '#9aa3ae';
 }
 
 /* Bilan des heures : chaque élève dispose de 36 h (Première) ou 72 h (Terminale).
    Une tâche « Toute l'équipe » compte pour chacun des élèves. */
 function bilanHeures() {
   const lim = limiteHeures();
+  if (projet.niveau === 'seconde') {
+    // Seconde : une tâche faite à plusieurs compte pour chacun des élèves qui y participent
+    const eleves = projet.eleves.map(e => ({ e, nom: nomResponsable(e.uid),
+      h: projet.taches.filter(t => (t.eleves || []).includes(e.uid)).reduce((s, t) => s + nombre(t.duree), 0) }));
+    return { lim, equipe: 0, eleves, nonAffecte: projet.taches.filter(t => !(t.eleves || []).some(u => projet.eleves.some(e => e.uid === u))),
+             depassements: eleves.filter(x => x.h > lim + 1e-9), total: projet.taches.reduce((s, t) => s + nombre(t.duree), 0) };
+  }
   const equipe = projet.taches.filter(t => t.responsable === 'equipe').reduce((s, t) => s + nombre(t.duree), 0);
   const eleves = projet.eleves.map(e => {
     const h = equipe + projet.taches.filter(t => t.responsable === e.uid).reduce((s, t) => s + nombre(t.duree), 0);
@@ -1590,15 +1687,117 @@ function htmlBilan(b) {
   let h = '';
   if (b.depassements.length) h += `<div class="alerte danger"><b>⚠ Dépassement d'heures.</b> ${b.depassements.map(x => `${esc(x.nom)} : ${fmtH(x.h)} prévues pour ${b.lim} h disponibles`).join(' · ')}. Réduisez ou répartissez autrement certaines tâches.</div>`;
   else if (projet.taches.length && b.eleves.every(x => Math.abs(x.h - b.lim) < 1e-9)) h += `<div class="alerte ok">✓ Planning complet : chaque élève a exactement ${b.lim} h de travail prévues.</div>`;
-  if (b.nonAffecte.length) h += `<div class="alerte warn">${b.nonAffecte.length} tâche${b.nonAffecte.length > 1 ? 's n’ont' : ' n’a'} pas de responsable.</div>`;
+  if (b.nonAffecte.length) h += `<div class="alerte warn">${b.nonAffecte.length} tâche${b.nonAffecte.length > 1 ? 's n’ont' : ' n’a'} pas ${projet.niveau === 'seconde' ? 'd’élève' : 'de responsable'}.</div>`;
+  if (projet.niveau === 'seconde' && !b.depassements.length) {
+    const reste = b.lim - Math.max(0, ...b.eleves.map(x => x.h));
+    if (reste > 1e-9) h += `<div class="alerte info">Il reste au moins ${fmtH(reste)} de séances à planifier.</div>`;
+  }
   h += `<div class="bilan">` + b.eleves.map(x => {
     const pct = Math.min(100, x.h / b.lim * 100), cls = x.h > b.lim + 1e-9 ? 'trop' : x.h < b.lim - 1e-9 ? 'sous' : '';
     return `<div class="bilan-ligne"><span>${esc(x.nom)}</span><div class="jauge" title="${fmtH(x.h)} / ${b.lim} h"><span class="${cls}" style="width:${pct}%"></span></div><b class="${cls}">${fmtH(x.h)} / ${b.lim} h</b></div>`;
-  }).join('') + `</div><p class="aide">Les tâches « Toute l'équipe » (${fmtH(b.equipe)}) comptent pour chaque élève. Total de toutes les tâches : ${fmtH(b.total)}.</p>`;
+  }).join('') + `</div><p class="aide">${projet.niveau === 'seconde'
+    ? `Heures disponibles = total des séances de l'année. Une tâche faite à plusieurs compte pour chaque élève qui y participe.`
+    : `Les tâches « Toute l'équipe » (${fmtH(b.equipe)}) comptent pour chaque élève. Total de toutes les tâches : ${fmtH(b.total)}.`}</p>`;
   return h;
 }
 
+/* --- Seconde : séances datées (vendredis) et Gantt par séance --- */
+function nomEleves(t) {
+  const ids = t.eleves || [];
+  if (projet.eleves.length && projet.eleves.every(e => ids.includes(e.uid))) return 'Tout le groupe';
+  return ids.map(nomResponsable).filter(x => x !== '—').join(', ') || '—';
+}
+const libelleSeance = x => `${dateLongue(x.date)} (${fmtH(nombre(x.duree))})`;
+
+/* Pour une tâche : première et dernière séance occupées, et fraction utilisée de la dernière */
+function etendueTache(t, seances) {
+  let i = seances.findIndex(x => x.uid === t.seance); if (i < 0) i = 0;
+  let reste = nombre(t.duree), j = i, frac = 1;
+  while (reste > 1e-9 && j < seances.length) {
+    const d = Math.max(0.25, nombre(seances[j].duree));
+    if (reste <= d) { frac = reste / d; reste = 0; break; }
+    reste -= d; j++;
+  }
+  if (j >= seances.length) { j = seances.length - 1; frac = 1; }
+  return { i, j, frac, deborde: reste > 1e-9 };
+}
+
+function svgGanttSeconde(pourImpression = false) {
+  const S = [...projet.seances].sort((a, b) => a.date.localeCompare(b.date)), T = projet.taches;
+  const n = Math.max(1, S.length), LW = 250, CW = Math.max(20, Math.min(40, Math.floor(700 / n))), RH = pourImpression ? 20 : 26, TH = 50;
+  const W = LW + n * CW, H = TH + Math.max(1, T.length) * RH + 6;
+  let s = '';
+  S.forEach((x, k) => {
+    const X = LW + k * CW;
+    s += `<line class="dg-grille" x1="${X}" y1="0" x2="${X}" y2="${H}"/>
+      <text class="dg-t" style="font-weight:700" x="${X + CW / 2}" y="15" text-anchor="middle">${lireDate(x.date) ? lireDate(x.date).getDate() : '?'}</text>
+      <text class="dg-t petit" x="${X + CW / 2}" y="28" text-anchor="middle">${lireDate(x.date) ? lireDate(x.date).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '').slice(0, 4) : ''}</text>
+      <text class="dg-t petit" x="${X + CW / 2}" y="43" text-anchor="middle">${String(arrondi(nombre(x.duree))).replace('.', ',')}h</text>`;
+  });
+  s += `<line class="dg-trait" x1="0" y1="${TH}" x2="${W}" y2="${TH}"/><line class="dg-trait" x1="${LW}" y1="0" x2="${LW}" y2="${H}"/>
+    <text class="dg-t gras" x="6" y="20">Tâche (élèves)</text><text class="dg-t petit" x="6" y="38">Séances du vendredi →</text>`;
+  if (!T.length) s += `<text class="dg-placeholder" x="${W / 2}" y="${TH + 18}" text-anchor="middle">Aucune tâche planifiée.</text>`;
+  T.forEach((t, k) => {
+    const y = TH + k * RH;
+    if (k % 2) s += `<rect x="0" y="${y}" width="${W}" height="${RH}" fill="var(--dg-grid)" opacity=".35"/>`;
+    const lab = (t.nom || '(sans nom)') + ' — ' + nomEleves(t);
+    s += `<text class="dg-t" x="6" y="${y + RH / 2 + 4}"><title>${esc(lab)}</title>${esc(lab.length > 40 ? lab.slice(0, 39) + '…' : lab)}</text>`;
+    if (nombre(t.duree) > 0 && S.length) {
+      const e = etendueTache(t, S), x0 = LW + e.i * CW, w = Math.max(4, (e.j - e.i + e.frac) * CW);
+      const ids = t.eleves || [], couleur = ids.length === 1 ? couleurResponsable(ids[0]) : COULEURS[5];
+      s += `<rect x="${x0 + 1}" y="${y + 4}" width="${w - 2}" height="${RH - 8}" rx="4" fill="${couleur}"${e.deborde ? ' stroke="#c0262d" stroke-width="2"' : ''}/>`;
+      if (w > 30) s += `<text class="dg-t" style="fill:#fff;font-weight:700;font-size:10.5px" x="${x0 + w / 2}" y="${y + RH / 2 + 4}" text-anchor="middle">${esc(fmtH(nombre(t.duree)))}</text>`;
+    }
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="gantt" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet"${pourImpression ? '' : ` style="max-width:${W * 1.15}px"`}>${s}</svg>`;
+}
+
+function ongletPlanningSeconde(c) {
+  c.innerHTML = `<p class="intro">Le projet dure toute l'année, le vendredi (1 h et 2 h en alternance). Notez les tâches, les élèves qui y travaillent
+    (on peut être plusieurs : le groupe travaille ensemble), le logiciel ou la machine utilisé, la séance où la tâche commence et sa durée.</p>
+    <div class="carte"><h2>Contrôle des heures</h2><div id="bilan"></div></div>
+    <div class="carte"><h2>Tâches du projet</h2><div id="ed-taches"></div>
+      <p><button class="btn secondaire" id="btn-csv">⬇ Exporter le tableau (CSV pour tableur)</button></p></div>
+    <div class="carte"><div class="diag-barre" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><h2 style="flex:1;margin:0">Diagramme de Gantt</h2>
+      <button class="btn secondaire" id="btn-imp-planning">🖨️ Imprimer le planning</button></div>
+      <div class="defile" id="gantt" style="margin-top:.6rem"></div>
+      <p class="aide">Une barre grise = tâche faite à plusieurs ; une barre colorée = un seul élève. Une barre entourée de rouge dépasse la fin de l'année.</p></div>
+    <details class="carte"><summary><b>Calendrier des séances</b> <span class="aide">(${projet.seances.length} séances, ${fmtH(limiteHeures())}) — pour le professeur</span></summary>
+      <p class="aide">Retirez une séance annulée (sortie, examen…) ou modifiez sa durée. Par défaut : chaque vendredi du 20/11/2026 à mi-juin 2027, 1 h puis 2 h, hors vacances (zone B) et pont de l'Ascension.</p>
+      <div id="ed-seances"></div>
+      <p><button class="btn discret" id="btn-cal">↺ Revenir au calendrier par défaut</button></p></details>`;
+  const optionsSeances = () => [...projet.seances].sort((a, b) => a.date.localeCompare(b.date)).map(x => [x.uid, libelleSeance(x)]);
+  const maj = () => { $('#bilan').innerHTML = htmlBilan(bilanHeures()); $('#gantt').innerHTML = svgGanttSeconde(); majEntete(); };
+  const edT = editeurListe($('#ed-taches'), {
+    items: projet.taches, ajouter: 'Ajouter une tâche', cartes: true, nomLigne: 'Tâche',
+    nouveau: () => { const der = projet.taches[projet.taches.length - 1]; return { uid: uid(), nom: '', eleves: [], outil: '', duree: '', seance: der ? der.seance : (projet.seances[0] || {}).uid }; },
+    colonnes: [
+      { k:'nom', label:'Tâche', ph:'Ex. : Modéliser la carrosserie', pleine:true },
+      { k:'eleves', label:'Élèves', type:'puces', tous:true, vide:"Ajoutez d'abord les élèves (onglet « Qui fait quoi ? »).", options: () => projet.eleves.map(e => [e.uid, nomResponsable(e.uid)]) },
+      { k:'outil', label:'Logiciel / machine', type:'select', options: () => [['', '—'], ...SECONDE.logiciels.map(l => [l, l])] },
+      { k:'seance', label:'Commence le', type:'select', structurel:true, options: optionsSeances },
+      { k:'duree', label:'Durée (h)', type:'number', step:0.5 }
+    ],
+    onChange: () => { modifie(); maj(); }
+  });
+  editeurListe($('#ed-seances'), {
+    items: projet.seances, ajouter: 'Ajouter une séance', nouveau: () => ({ uid: uid(), date: '', duree: 1 }),
+    colonnes: [ { k:'date', label:'Date', type:'date', structurel:true }, { k:'duree', label:'Durée (h)', type:'number', step:0.5, structurel:true } ],
+    onChange: (st) => { projet.seances.sort((a, b) => (a.date || '9').localeCompare(b.date || '9')); modifie(); maj(); if (st) edT.rendre(); }
+  });
+  $('#btn-cal').onclick = () => {
+    if (!confirm('Remplacer le calendrier par celui par défaut ? Les tâches seront rattachées aux nouvelles séances.')) return;
+    const anc = [...projet.seances].sort((a, b) => a.date.localeCompare(b.date)).map(x => x.uid), nouv = seancesParDefaut();
+    projet.taches.forEach(t => { const i = Math.max(0, anc.indexOf(t.seance)); t.seance = nouv[Math.min(i, nouv.length - 1)].uid; });
+    projet.seances = nouv; modifie(); afficherOnglet('planning');
+  };
+  $('#btn-csv').onclick = exporterCSV;
+  $('#btn-imp-planning').onclick = () => imprimer('planning');
+  maj();
+}
+
 function ongletPlanning(c) {
+  if (projet.niveau === 'seconde') return ongletPlanningSeconde(c);
   const N = NIVEAUX[projet.niveau];
   c.innerHTML = `<p class="intro">Listez les tâches du projet avec leur responsable, leur durée en heures et la semaine où elles commencent.
     Chaque élève dispose de <b id="lim-h">${limiteHeures()} h</b> de projet. Le diagramme de Gantt se construit automatiquement.</p>
@@ -1607,7 +1806,6 @@ function ongletPlanning(c) {
       <div class="ligne-champs" style="max-width:640px">
         <div class="champ"><label for="p-hps">Heures de projet par semaine</label><input type="number" id="p-hps" min="0.5" step="0.5" value="${esc(projet.planning.hps)}"></div>
         <div class="champ"><label for="p-sem">Nombre de semaines</label><input type="number" id="p-sem" min="1" step="1" value="${esc(projet.planning.semaines)}"></div>
-        ${N.heuresReglables ? `<div class="champ"><label for="p-heures">Heures de projet par élève</label><input type="number" id="p-heures" min="1" step="0.5" value="${esc(limiteHeures())}"></div>` : ''}
       </div>
       <div id="ed-taches"></div>
       <p><button class="btn secondaire" id="btn-csv">⬇ Exporter le tableau (CSV pour tableur)</button></p></div>
@@ -1636,7 +1834,6 @@ function ongletPlanning(c) {
     onChange: () => { modifie(); maj(); }
   });
   $('#p-hps').oninput = e => { projet.planning.hps = nombre(e.target.value) || ''; modifie(); maj(); };
-  if ($('#p-heures')) $('#p-heures').oninput = e => { projet.planning.heures = nombre(e.target.value) || ''; $('#lim-h').textContent = limiteHeures() + ' h'; modifie(); maj(); };
   $('#p-sem').oninput = e => { projet.planning.semaines = Math.round(nombre(e.target.value)) || ''; modifie(); maj(); };
   $('#btn-csv').onclick = exporterCSV;
   $('#btn-imp-planning').onclick = () => imprimer('planning');
@@ -1646,6 +1843,11 @@ function ongletPlanning(c) {
 /* Export du planning au format CSV (séparateur « ; », lisible par Excel / LibreOffice) */
 function exporterCSV() {
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  if (projet.niveau === 'seconde') {
+    const L = [['Tâche', 'Élèves', 'Logiciel / machine', 'Commence le', 'Durée (h)'].map(q).join(';')];
+    projet.taches.forEach(t => { const x = projet.seances.find(z => z.uid === t.seance); L.push([t.nom, nomEleves(t), t.outil, x ? dateCourte(x.date) : '', String(t.duree).replace('.', ',')].map(q).join(';')); });
+    return telecharger(`taches-${slug(projet.fiche.intitule)}.csv`, '\ufeff' + L.join('\r\n'), 'text/csv;charset=utf-8');
+  }
   const lignes = [['Tâche', 'Responsable', 'Durée (h)', 'Semaine de début'].map(q).join(';')];
   projet.taches.forEach(t => lignes.push([t.nom, nomResponsable(t.responsable), String(t.duree).replace('.', ','), t.semaine].map(q).join(';')));
   telecharger(`taches-${slug(projet.fiche.intitule)}.csv`, '﻿' + lignes.join('\r\n'), 'text/csv;charset=utf-8');
@@ -1705,22 +1907,27 @@ function feuillesSeconde() {
     total => `${entete(titre, st, 1, total)}
       <table class="f-tab">
         <tr><th>Nom du projet</th><td colspan="3"><b>${val(f.intitule)}</b></td></tr>
-        <tr><th>Classe / groupe</th><td>${val(f.classe)}</td><th style="width:28mm">Professeur</th><td>${val(f.enseignant)}</td></tr>
+        <tr><th>Équipe</th><td>${val(f.equipe)}</td><th style="width:28mm">Classe</th><td>${val(f.classe)}</td></tr>
+        <tr><th>Professeur</th><td colspan="3">${val(f.enseignant)}</td></tr>
       </table>
       ${bloc('Le besoin : quel problème veut-on résoudre ?', f.besoin)}
       <div class="f-bloc f-diag"><div class="f-lab">Bête à cornes</div><div class="f-val">${svgBeteACornes()}</div></div>
       ${bloc('Ce que nous allons fabriquer', f.production)}
-      ${bloc('Matériel et machines prévus', f.materiel)}
-      <table class="f-tab"><thead><tr><th style="width:36mm">Élève</th><th>Ce que je fais</th></tr></thead><tbody>
+      <table class="f-tab"><thead><tr><th>Règlement</th><th style="width:30mm">Maximum</th><th style="width:30mm">Notre projet</th><th style="width:22mm">Conforme</th></tr></thead><tbody>
+        ${[['Longueur de la voiture', SECONDE.voitureMax, f.voitureL], ['Longueur du stand', SECONDE.standMax, f.standL], ['Largeur du stand', SECONDE.standMax, f.standl], ['Hauteur du stand', SECONDE.standMax, f.standH]]
+          .map(([l, m, v]) => `<tr><td>${l}</td><td class="c">${m} mm</td><td class="c">${v === '' || v == null ? '' : esc(v) + ' mm'}</td><td class="c f-x">${v === '' || v == null ? '' : nombre(v) <= m ? '✓' : '<span style="color:#b00">✗</span>'}</td></tr>`).join('')}
+      </tbody></table>
+      ${bloc('Logiciels, machines et matériel', [(f.logiciels || []).join(', '), f.materiel].filter(Boolean).join('\n'))}
+      <table class="f-tab"><thead><tr><th style="width:36mm">Élève</th><th>Sa partie du projet</th></tr></thead><tbody>
         ${Array.from({ length: Math.max(4, projet.eleves.length) }, (_, i) => {
           const e = projet.eleves[i];
-          return `<tr><td><b>${e && e.nom ? esc(e.nom) : 'Élève ' + (i + 1)}</b></td><td style="white-space:pre-wrap;height:8mm">${e ? esc(e.tache) : ''}</td></tr>`;
+          return `<tr><td><b>${e && e.nom ? esc(e.nom) : 'Élève ' + (i + 1)}</b></td><td style="white-space:pre-wrap;height:6mm">${e ? esc(e.tache) : ''}</td></tr>`;
         }).join('')}
       </tbody></table>
       ${pied()}`,
     total => `${entete(titre, 'Contexte et planning', 2, total)}
       ${blocDiag('Diagramme de contexte', 'contexte')}
-      <div class="f-bloc"><div class="f-lab">Planning (${limiteHeures()} h par élève)</div><div class="f-val" style="padding:1.5mm">${svgGantt(true)}</div></div>
+      <div class="f-bloc"><div class="f-lab">Planning de l'année (${projet.seances.length} séances le vendredi, ${limiteHeures()} h)</div><div class="f-val" style="padding:1.5mm">${svgGanttSeconde(true)}</div></div>
       ${pied()}`
   ];
 }
@@ -1763,8 +1970,9 @@ function feuillesTerminale() {
 /* --- Feuille « Planning » (annexe ou impression seule) --- */
 function feuillePlanning(n, total) {
   const b = bilanHeures();
-  return `${entete('Planning des tâches', `${NIVEAUX[projet.niveau].label} — ${b.lim} h par élève — ${fmtH(nombre(projet.planning.hps))} par semaine`, n, total)}
-    <div class="f-bloc"><div class="f-lab">Diagramme de Gantt</div><div class="f-val" style="padding:1.5mm">${svgGantt(true)}</div></div>
+  const sec = projet.niveau === 'seconde';
+  return `${entete('Planning des tâches', sec ? `${NIVEAUX.seconde.label} — ${projet.seances.length} séances, ${b.lim} h sur l'année` : `${NIVEAUX[projet.niveau].label} — ${b.lim} h par élève — ${fmtH(nombre(projet.planning.hps))} par semaine`, n, total)}
+    <div class="f-bloc"><div class="f-lab">Diagramme de Gantt</div><div class="f-val" style="padding:1.5mm">${sec ? svgGanttSeconde(true) : svgGantt(true)}</div></div>
     <table class="f-tab"><thead><tr><th>Élève</th><th>Heures prévues</th><th>Heures disponibles</th><th>Écart</th></tr></thead><tbody>
       ${b.eleves.map(x => `<tr><td>${esc(x.nom)}</td><td class="c">${fmtH(x.h)}</td><td class="c">${b.lim} h</td><td class="c"${x.h > b.lim ? ' style="color:#b00;font-weight:700"' : ''}>${x.h > b.lim ? '+' : ''}${fmtH(x.h - b.lim)}</td></tr>`).join('')}
     </tbody></table>${pied()}`;
@@ -1799,7 +2007,7 @@ function ongletExport(c) {
   c.innerHTML = `<div class="carte"><h2>Export PDF de la fiche officielle</h2>
       <p class="aide">Cliquez sur « Imprimer / Enregistrer en PDF », puis choisissez <b>« Enregistrer au format PDF »</b> comme imprimante.
       Pour un résultat fidèle : format A4, marges « Aucune » ou « Par défaut », et cochez « Graphiques d'arrière-plan » si l'option existe.</p>
-      ${projet.niveau === 'seconde' ? `<p class="aide">Fiche Seconde : 2 pages (le projet, la bête à cornes et l'équipe ; le contexte et le planning).</p>` : ter ? `<p class="aide">Modèle Terminale : 3 pages (identification et cas d'utilisation ; contexte et exigences ; équipe, production, STEM et tâches).</p>` : `
+      ${projet.niveau === 'seconde' ? `<p class="aide">Fiche Seconde : 2 pages (le projet, la bête à cornes, le règlement et l'équipe ; le contexte et le planning de l'année).</p>` : ter ? `<p class="aide">Modèle Terminale : 3 pages (identification et cas d'utilisation ; contexte et exigences ; équipe, production, STEM et tâches).</p>` : `
       <p><label><input type="checkbox" id="o-diag" ${projet.options.diagrammes ? 'checked' : ''}> Ajouter les diagrammes SysML (2 pages)</label><br>
          <label><input type="checkbox" id="o-plan" ${projet.options.planning ? 'checked' : ''}> Ajouter le planning en annexe</label></p>`}
       ${longs.length ? `<div class="alerte warn">Certains textes dépassent la longueur conseillée et risquent d'être coupés sur la fiche : ${longs.map(esc).join(', ')}.</div>` : ''}
