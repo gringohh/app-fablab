@@ -104,11 +104,6 @@ def adresses_locales():
 def bilan_heures(projet):
     """Renvoie la liste des élèves qui dépassent le nombre d'heures prévu (même règle que l'application)."""
     limite = HEURES.get(projet.get("niveau"), 0)
-    if projet.get("niveau") == "seconde":   # en Seconde, le professeur règle le nombre d'heures
-        try:
-            limite = float(str((projet.get("planning") or {}).get("heures") or limite).replace(",", ".")) or limite
-        except ValueError:
-            pass
     taches = projet.get("taches") or []
 
     def duree(t):
@@ -116,6 +111,17 @@ def bilan_heures(projet):
             return float(str(t.get("duree", 0)).replace(",", "."))
         except (TypeError, ValueError):
             return 0.0
+
+    if projet.get("niveau") == "seconde":
+        # Seconde : heures disponibles = total des séances de l'année ;
+        # une tâche faite à plusieurs compte pour chaque élève qui y participe
+        limite = sum(duree(x) for x in projet.get("seances") or [])
+        depassements = []
+        for e in projet.get("eleves") or []:
+            h = sum(duree(t) for t in taches if e.get("uid") in (t.get("eleves") or []))
+            if h > limite + 1e-9:
+                depassements.append(f"{e.get('nom') or 'élève'} ({h:g} h)")
+        return depassements
 
     equipe = sum(duree(t) for t in taches if t.get("responsable") == "equipe")
     depassements = []

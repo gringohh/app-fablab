@@ -17,9 +17,13 @@ Ouvrir `index.html` dans un navigateur récent (Firefox, Chrome, Edge). C'est to
 
 Aucune donnée n'est envoyée sur Internet.
 
-### Seconde SI-CIT (version simplifiée)
+### Seconde SI-CIT (mini « Course en cours », toute l'année)
 
-Parcours adapté au niveau de Seconde : fiche courte (nom du projet, classe, besoin, ce que l'on va fabriquer, matériel), « Qui fait quoi ? », **bête à cornes**, diagramme de contexte, planning simple. Le nombre d'heures par élève se règle dans l'onglet Planning (12 h par défaut). Fiche PDF sur 2 pages. Exemple : « Distributeur automatique de croquettes ».
+Parcours simplifié : fiche courte (nom du projet, nom de l'équipe, classe, besoin, ce que l'on va fabriquer), **règlement vérifié automatiquement** (voiture 100 mm maximum, stand 150 × 150 × 150 mm), logiciels et machines (SolidWorks, SketchUp, Tinkercad, imprimante 3D, découpe laser…), « Qui fait quoi ? » (groupes de 4 à 6), **bête à cornes**, diagramme de contexte, planning des vendredis. Fiche PDF sur 2 pages.
+
+- **Séances** : chaque vendredi du 20/11/2026 à mi-juin 2027, 1 h puis 2 h en alternance, hors vacances de la zone B et pont de l'Ascension (23 séances, 35 h). Le professeur peut retirer ou modifier une séance (Planning → « Calendrier des séances »).
+- **Tâches** : une tâche peut être faite par plusieurs élèves (bouton « Tout le groupe ») ; elle compte pour chacun. Le contrôle compare les heures de chaque élève au total des séances.
+- Règlement, logiciels et calendrier se modifient en tête du script (`const SECONDE`).
 
 ## 2. Mode serveur (réseau du lycée)
 
