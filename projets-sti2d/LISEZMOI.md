@@ -1,4 +1,4 @@
-# Tableau de bord des projets STI2D
+# Projet — tableau de bord des projets
 
 **Auteur : H. Hammadou** — © 2026, tous droits réservés (voir [LICENCE](LICENCE)).
 
@@ -8,7 +8,7 @@ Application pour remplir la fiche de projet, générer les diagrammes SysML et l
 
 Ouvrir `index.html` dans un navigateur récent (Firefox, Chrome, Edge). C'est tout.
 
-- **Accueil** : choix Première STI2D (36 h) ou Terminale 2I2D (72 h), « Charger l'exemple », « Ouvrir un projet enregistré » (.json).
+- **Accueil** : choix Seconde SI-CIT (version simplifiée), Première STI2D (36 h) ou Terminale 2I2D (72 h), « Charger l'exemple », « Ouvrir un projet enregistré » (.json).
 - **Onglets** : Fiche projet, Équipe et tâches, Exigences, Cas d'utilisation, Contexte, Planning, Export PDF.
 - **Diagrammes** : mis à jour en direct ; les éléments se déplacent à la souris ; « Réorganiser » rétablit la mise en page automatique.
 - **Planning** : chaque élève dispose de 36 h (Première) ou 72 h (Terminale). Les tâches « Toute l'équipe » comptent pour chaque élève. Une alerte apparaît en cas de dépassement.
@@ -16,6 +16,10 @@ Ouvrir `index.html` dans un navigateur récent (Firefox, Chrome, Edge). C'est to
 - **PDF** : onglet « Export PDF » → « Imprimer / Enregistrer en PDF » → imprimante « Enregistrer au format PDF », format A4.
 
 Aucune donnée n'est envoyée sur Internet.
+
+### Seconde SI-CIT (version simplifiée)
+
+Parcours adapté au niveau de Seconde : fiche courte (nom du projet, classe, besoin, ce que l'on va fabriquer, matériel), « Qui fait quoi ? », **bête à cornes**, diagramme de contexte, planning simple. Le nombre d'heures par élève se règle dans l'onglet Planning (12 h par défaut). Fiche PDF sur 2 pages. Exemple : « Distributeur automatique de croquettes ».
 
 ## 2. Mode serveur (réseau du lycée)
 
