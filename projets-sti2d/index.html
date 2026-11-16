@@ -38,6 +38,7 @@
   --dg-bg:#ffffff; --dg-stroke:#283140; --dg-text:#161d28; --dg-muted:#556072; --dg-fill:#f8fafd;
   --dg-head:#e2ebfa; --dg-frame:#fcfdfe; --dg-grid:#e3e8ef;
   --dg-utilisateur:#e2ebfa; --dg-energie:#fff0d1; --dg-environnement:#e0f2e3; --dg-systeme:#eee5f8;
+  --dg-auj-ligne:#fff3c4;
   color-scheme:light;
 }
 :root[data-theme="dark"]{
@@ -48,6 +49,7 @@
   --dg-bg:#18202a; --dg-stroke:#b9c4d4; --dg-text:#e5eaf1; --dg-muted:#a3afc0; --dg-fill:#1f2833;
   --dg-head:#24354f; --dg-frame:#1a222d; --dg-grid:#2a3441;
   --dg-utilisateur:#22344f; --dg-energie:#3d3018; --dg-environnement:#1d3626; --dg-systeme:#33274a;
+  --dg-auj-ligne:#3b3415;
   color-scheme:dark;
 }
 
@@ -198,6 +200,13 @@ svg.diagramme .dg-n:hover .dg-forme{stroke-width:2.2}
 .dg-systeme{fill:var(--dg-frame);stroke:var(--dg-stroke);stroke-width:1.5}
 .dg-grille{stroke:var(--dg-grid);stroke-width:1}
 .dg-placeholder{fill:var(--dg-muted);font:italic 14px system-ui,Arial,sans-serif}
+.dg-auj{fill:var(--primary);opacity:.16}
+.dg-auj-tete{fill:var(--primary)}
+.dg-auj-txt{fill:var(--primary-ink)!important;font-weight:700}
+.dg-auj-ligne{fill:var(--dg-auj-ligne)}
+.dg-prochaine{fill:none;stroke:var(--primary);stroke-width:1.6;stroke-dasharray:5 3}
+.aujourdhui ul{margin:.3rem 0 0;padding-left:1.2rem}
+.aujourdhui li{margin:.15rem 0}
 .cat-utilisateur{fill:var(--dg-utilisateur)} .cat-energie{fill:var(--dg-energie)}
 .cat-environnement{fill:var(--dg-environnement)} .cat-systeme{fill:var(--dg-systeme)}
 
@@ -302,6 +311,12 @@ const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, 
 const lireDate = iso => { const [a, m, j] = String(iso || '').split('-').map(Number); return a ? new Date(a, m - 1, j) : null; };
 const dateCourte = iso => { const d = lireDate(iso); return d ? d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '?'; };
 const dateLongue = iso => { const d = lireDate(iso); return d ? d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '?'; };
+
+/* Date du jour (à minuit). window.DATE_TEST permet de simuler une autre date pour les essais. */
+function aujourdhui() {
+  const t = window.DATE_TEST ? lireDate(window.DATE_TEST) : new Date();
+  return new Date(t.getFullYear(), t.getMonth(), t.getDate());
+}
 
 /* Calendrier par défaut des séances de Seconde */
 function seancesParDefaut() {
@@ -580,6 +595,7 @@ function exemplePremiere() {
   t.push(['Intégration et essais de la serre complète', 'equipe', 6, 10]);
   t.push(['Préparation de la présentation finale', 'equipe', 3, 12]);
   p.taches = t.map(([nom, responsable, duree, semaine]) => ({ uid:uid(), nom, responsable, duree, semaine }));
+  p.planning.debut = '2026-11-02';   // date de début de l'exemple (semaine 1)
   return p;
 }
 
@@ -653,6 +669,7 @@ function exempleTerminale() {
   t.push(['Intégration sur la maquette et essais globaux', 'equipe', 12, 15]);
   t.push(['Préparation de la soutenance', 'equipe', 4, 18]);
   p.taches = t.map(([nom, responsable, duree, semaine]) => ({ uid:uid(), nom, responsable, duree, semaine }));
+  p.planning.debut = '2026-11-02';   // date de début de l'exemple (semaine 1)
   return p;
 }
 
@@ -1660,19 +1677,24 @@ function svgGantt(pourImpression = false) {
   const LW = 250, CW = Math.max(22, Math.min(44, Math.floor(640 / nbSem))), RH = pourImpression ? 20 : 26, TH = 28;
   const W = LW + nbSem * CW, H = TH + Math.max(1, taches.length) * RH + 6;
   let s = '';
+  // Semaine en cours en couleur (à l'écran seulement, pas sur la fiche imprimée)
+  const r = pourImpression ? {} : repereDuJour(), wj = r.semaine >= 1 && r.semaine <= nbSem ? r.semaine - 1 : -1;
+  if (wj >= 0) s += `<rect class="dg-auj" x="${LW + wj * CW}" y="0" width="${CW}" height="${H}"/><rect class="dg-auj-tete" x="${LW + wj * CW}" y="0" width="${CW}" height="${TH}"/>`;
   for (let i = 0; i < nbSem; i++) {
     const x = LW + i * CW;
-    s += `<line class="dg-grille" x1="${x}" y1="0" x2="${x}" y2="${H}"/><text class="dg-t petit" x="${x + CW / 2}" y="18" text-anchor="middle">S${i + 1}</text>`;
+    s += `<line class="dg-grille" x1="${x}" y1="0" x2="${x}" y2="${H}"/><text class="dg-t petit${i === wj ? ' dg-auj-txt' : ''}" x="${x + CW / 2}" y="18" text-anchor="middle">S${i + 1}</text>`;
   }
   s += `<line class="dg-trait" x1="0" y1="${TH}" x2="${W}" y2="${TH}"/><line class="dg-trait" x1="${LW}" y1="0" x2="${LW}" y2="${H}"/>`;
   s += `<text class="dg-t gras" x="6" y="18">Tâche (responsable)</text>`;
   if (!taches.length) s += `<text class="dg-placeholder" x="${W / 2}" y="${TH + 18}" text-anchor="middle">Aucune tâche planifiée.</text>`;
   taches.forEach((t, i) => {
     const y = TH + i * RH;
-    if (i % 2) s += `<rect x="0" y="${y}" width="${W}" height="${RH}" fill="var(--dg-grid)" opacity=".35"/>`;
+    const enCours = wj >= 0 && r.taches.includes(t);
+    if (enCours) s += `<rect class="dg-auj-ligne" x="0" y="${y}" width="${LW}" height="${RH}"/>`;
+    else if (i % 2) s += `<rect x="0" y="${y}" width="${W}" height="${RH}" fill="var(--dg-grid)" opacity=".35"/>`;
     const lab = (t.nom || '(sans nom)') + ' — ' + nomResponsable(t.responsable);
     const max = 40;
-    s += `<text class="dg-t" x="6" y="${y + RH / 2 + 4}"><title>${esc(lab)}</title>${esc(lab.length > max ? lab.slice(0, max - 1) + '…' : lab)}</text>`;
+    s += `<text class="dg-t${enCours ? ' gras' : ''}" x="6" y="${y + RH / 2 + 4}"><title>${esc(lab)}</title>${esc(lab.length > max ? lab.slice(0, max - 1) + '…' : lab)}</text>`;
     const d = nombre(t.duree);
     if (d > 0) {
       const x0 = LW + (Math.max(1, Math.round(nombre(t.semaine)) || 1) - 1) * CW, w = Math.max(3, d / hps * CW);
@@ -1681,6 +1703,49 @@ function svgGantt(pourImpression = false) {
     }
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" class="gantt" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet"${pourImpression ? '' : ` style="max-width:${W * 1.15}px"`}>${s}</svg>`;
+}
+
+/* =====================================================================
+   REPÈRE DU JOUR : où en est-on aujourd'hui dans le planning ?
+   - Seconde : séance du jour (ou prochaine séance) parmi les vendredis datés ;
+   - Première / Terminale : semaine du projet, calculée à partir de la date de début.
+   ===================================================================== */
+const seancesTriees = () => [...projet.seances].sort((a, b) => a.date.localeCompare(b.date));
+
+function repereDuJour() {
+  const auj = aujourdhui(), iso = isoDate(auj);
+  if (projet.niveau === 'seconde') {
+    const S = seancesTriees();
+    const k = S.findIndex(x => x.date === iso);
+    const kp = k >= 0 ? k : S.findIndex(x => x.date > iso);
+    const taches = kp < 0 ? [] : projet.taches.filter(t => { const e = etendueTache(t, S); return nombre(t.duree) > 0 && e.i <= kp && kp <= e.j; });
+    return { seconde: true, S, k, kp, taches };
+  }
+  const debut = lireDate(projet.planning.debut);
+  if (!debut) return { semaine: null };
+  const w = Math.floor(Math.round((auj - debut) / 86400000) / 7) + 1;
+  const hps = Math.max(0.5, nombre(projet.planning.hps) || NIVEAUX[projet.niveau].hps);
+  const taches = projet.taches.filter(t => {
+    const s0 = Math.max(1, Math.round(nombre(t.semaine)) || 1) - 1, s1 = s0 + nombre(t.duree) / hps;
+    return nombre(t.duree) > 0 && s0 <= w - 1 && w - 1 < s1;
+  });
+  return { semaine: w, debut, taches };
+}
+
+/* Bandeau « Aujourd'hui » en haut de l'onglet Planning */
+function htmlAujourdhui() {
+  const r = repereDuJour(), auj = aujourdhui();
+  const jour = auj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const liste = ts => ts.length ? `<ul>${ts.map(t => `<li><b>${esc(t.nom || '(sans nom)')}</b> — ${esc(r.seconde ? nomEleves(t) : nomResponsable(t.responsable))}${t.outil ? ` · ${esc(t.outil)}` : ''}</li>`).join('')}</ul>` : '<p style="margin:.3rem 0 0">Aucune tâche prévue.</p>';
+  if (r.seconde) {
+    if (r.k >= 0) return `<div class="alerte info aujourdhui">📅 <b>Aujourd'hui, ${esc(jour)} : séance de ${fmtH(nombre(r.S[r.k].duree))}</b> (n° ${r.k + 1} sur ${r.S.length}). À faire aujourd'hui :${liste(r.taches)}</div>`;
+    if (r.kp >= 0) return `<div class="alerte info aujourdhui">📅 Aujourd'hui, ${esc(jour)} : pas de séance. <b>Prochaine séance : ${esc(dateLongue(r.S[r.kp].date))} (${fmtH(nombre(r.S[r.kp].duree))})</b>. Prévu :${liste(r.taches)}</div>`;
+    return `<div class="alerte ok aujourdhui">Toutes les séances de l'année sont passées.</div>`;
+  }
+  if (r.semaine == null) return `<div class="alerte warn aujourdhui">Indiquez la <b>date de début du projet</b> (carte « Tâches du projet ») pour voir la semaine en cours en couleur.</div>`;
+  if (r.semaine < 1) return `<div class="alerte info aujourdhui">📅 Le projet commence le ${esc(r.debut.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}.</div>`;
+  const lundi = new Date(r.debut); lundi.setDate(lundi.getDate() + (r.semaine - 1) * 7);
+  return `<div class="alerte info aujourdhui">📅 <b>Aujourd'hui, ${esc(jour)} : semaine ${r.semaine} du projet</b> (à partir du ${esc(lundi.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))}). Tâches en cours :${liste(r.taches)}</div>`;
 }
 
 function htmlBilan(b) {
@@ -1727,21 +1792,27 @@ function svgGanttSeconde(pourImpression = false) {
   const n = Math.max(1, S.length), LW = 250, CW = Math.max(20, Math.min(40, Math.floor(700 / n))), RH = pourImpression ? 20 : 26, TH = 50;
   const W = LW + n * CW, H = TH + Math.max(1, T.length) * RH + 6;
   let s = '';
+  // Séance du jour en couleur (ou prochaine séance en pointillés) — à l'écran seulement
+  const r = pourImpression ? { k: -1, kp: -1, taches: [] } : repereDuJour();
+  if (r.k >= 0) s += `<rect class="dg-auj" x="${LW + r.k * CW}" y="0" width="${CW}" height="${H}"/><rect class="dg-auj-tete" x="${LW + r.k * CW}" y="0" width="${CW}" height="${TH}"/>`;
+  else if (r.kp >= 0) s += `<rect class="dg-prochaine" x="${LW + r.kp * CW + 1}" y="1" width="${CW - 2}" height="${H - 2}" rx="3"/>`;
   S.forEach((x, k) => {
-    const X = LW + k * CW;
+    const X = LW + k * CW, c = k === r.k ? ' dg-auj-txt' : '';
     s += `<line class="dg-grille" x1="${X}" y1="0" x2="${X}" y2="${H}"/>
-      <text class="dg-t" style="font-weight:700" x="${X + CW / 2}" y="15" text-anchor="middle">${lireDate(x.date) ? lireDate(x.date).getDate() : '?'}</text>
-      <text class="dg-t petit" x="${X + CW / 2}" y="28" text-anchor="middle">${lireDate(x.date) ? lireDate(x.date).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '').slice(0, 4) : ''}</text>
-      <text class="dg-t petit" x="${X + CW / 2}" y="43" text-anchor="middle">${String(arrondi(nombre(x.duree))).replace('.', ',')}h</text>`;
+      <text class="dg-t${c}" style="font-weight:700" x="${X + CW / 2}" y="15" text-anchor="middle">${lireDate(x.date) ? lireDate(x.date).getDate() : '?'}</text>
+      <text class="dg-t petit${c}" x="${X + CW / 2}" y="28" text-anchor="middle">${lireDate(x.date) ? lireDate(x.date).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '').slice(0, 4) : ''}</text>
+      <text class="dg-t petit${c}" x="${X + CW / 2}" y="43" text-anchor="middle">${String(arrondi(nombre(x.duree))).replace('.', ',')}h</text>`;
   });
   s += `<line class="dg-trait" x1="0" y1="${TH}" x2="${W}" y2="${TH}"/><line class="dg-trait" x1="${LW}" y1="0" x2="${LW}" y2="${H}"/>
     <text class="dg-t gras" x="6" y="20">Tâche (élèves)</text><text class="dg-t petit" x="6" y="38">Séances du vendredi →</text>`;
   if (!T.length) s += `<text class="dg-placeholder" x="${W / 2}" y="${TH + 18}" text-anchor="middle">Aucune tâche planifiée.</text>`;
   T.forEach((t, k) => {
     const y = TH + k * RH;
-    if (k % 2) s += `<rect x="0" y="${y}" width="${W}" height="${RH}" fill="var(--dg-grid)" opacity=".35"/>`;
+    const enCours = r.taches.includes(t);
+    if (enCours) s += `<rect class="dg-auj-ligne" x="0" y="${y}" width="${LW}" height="${RH}"/>`;
+    else if (k % 2) s += `<rect x="0" y="${y}" width="${W}" height="${RH}" fill="var(--dg-grid)" opacity=".35"/>`;
     const lab = (t.nom || '(sans nom)') + ' — ' + nomEleves(t);
-    s += `<text class="dg-t" x="6" y="${y + RH / 2 + 4}"><title>${esc(lab)}</title>${esc(lab.length > 40 ? lab.slice(0, 39) + '…' : lab)}</text>`;
+    s += `<text class="dg-t${enCours ? ' gras' : ''}" x="6" y="${y + RH / 2 + 4}"><title>${esc(lab)}</title>${esc(lab.length > 40 ? lab.slice(0, 39) + '…' : lab)}</text>`;
     if (nombre(t.duree) > 0 && S.length) {
       const e = etendueTache(t, S), x0 = LW + e.i * CW, w = Math.max(4, (e.j - e.i + e.frac) * CW);
       const ids = t.eleves || [], couleur = ids.length === 1 ? couleurResponsable(ids[0]) : COULEURS[5];
@@ -1755,19 +1826,21 @@ function svgGanttSeconde(pourImpression = false) {
 function ongletPlanningSeconde(c) {
   c.innerHTML = `<p class="intro">Le projet dure toute l'année, le vendredi (1 h et 2 h en alternance). Notez les tâches, les élèves qui y travaillent
     (on peut être plusieurs : le groupe travaille ensemble), le logiciel ou la machine utilisé, la séance où la tâche commence et sa durée.</p>
+    <div id="aujourdhui"></div>
     <div class="carte"><h2>Contrôle des heures</h2><div id="bilan"></div></div>
     <div class="carte"><h2>Tâches du projet</h2><div id="ed-taches"></div>
       <p><button class="btn secondaire" id="btn-csv">⬇ Exporter le tableau (CSV pour tableur)</button></p></div>
     <div class="carte"><div class="diag-barre" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><h2 style="flex:1;margin:0">Diagramme de Gantt</h2>
       <button class="btn secondaire" id="btn-imp-planning">🖨️ Imprimer le planning</button></div>
       <div class="defile" id="gantt" style="margin-top:.6rem"></div>
-      <p class="aide">Une barre grise = tâche faite à plusieurs ; une barre colorée = un seul élève. Une barre entourée de rouge dépasse la fin de l'année.</p></div>
+      <p class="aide">Colonne bleue = séance d'aujourd'hui (en pointillés : prochaine séance) ; lignes jaunes = tâches du jour.
+      Barre grise = tâche faite à plusieurs ; barre colorée = un seul élève ; barre entourée de rouge = dépasse la fin de l'année.</p></div>
     <details class="carte"><summary><b>Calendrier des séances</b> <span class="aide">(${projet.seances.length} séances, ${fmtH(limiteHeures())}) — pour le professeur</span></summary>
       <p class="aide">Retirez une séance annulée (sortie, examen…) ou modifiez sa durée. Par défaut : chaque vendredi du 20/11/2026 à mi-juin 2027, 1 h puis 2 h, hors vacances (zone B) et pont de l'Ascension.</p>
       <div id="ed-seances"></div>
       <p><button class="btn discret" id="btn-cal">↺ Revenir au calendrier par défaut</button></p></details>`;
   const optionsSeances = () => [...projet.seances].sort((a, b) => a.date.localeCompare(b.date)).map(x => [x.uid, libelleSeance(x)]);
-  const maj = () => { $('#bilan').innerHTML = htmlBilan(bilanHeures()); $('#gantt').innerHTML = svgGanttSeconde(); majEntete(); };
+  const maj = () => { $('#aujourdhui').innerHTML = htmlAujourdhui(); $('#bilan').innerHTML = htmlBilan(bilanHeures()); $('#gantt').innerHTML = svgGanttSeconde(); majEntete(); };
   const edT = editeurListe($('#ed-taches'), {
     items: projet.taches, ajouter: 'Ajouter une tâche', cartes: true, nomLigne: 'Tâche',
     nouveau: () => { const der = projet.taches[projet.taches.length - 1]; return { uid: uid(), nom: '', eleves: [], outil: '', duree: '', seance: der ? der.seance : (projet.seances[0] || {}).uid }; },
@@ -1801,18 +1874,22 @@ function ongletPlanning(c) {
   const N = NIVEAUX[projet.niveau];
   c.innerHTML = `<p class="intro">Listez les tâches du projet avec leur responsable, leur durée en heures et la semaine où elles commencent.
     Chaque élève dispose de <b id="lim-h">${limiteHeures()} h</b> de projet. Le diagramme de Gantt se construit automatiquement.</p>
+    <div id="aujourdhui"></div>
     <div class="carte"><h2>Contrôle des heures</h2><div id="bilan"></div></div>
     <div class="carte"><h2>Tâches du projet</h2>
       <div class="ligne-champs" style="max-width:640px">
         <div class="champ"><label for="p-hps">Heures de projet par semaine</label><input type="number" id="p-hps" min="0.5" step="0.5" value="${esc(projet.planning.hps)}"></div>
         <div class="champ"><label for="p-sem">Nombre de semaines</label><input type="number" id="p-sem" min="1" step="1" value="${esc(projet.planning.semaines)}"></div>
+        <div class="champ"><label for="p-debut">Date de début (semaine 1)</label><input type="date" id="p-debut" value="${esc(projet.planning.debut || '')}"></div>
       </div>
       <div id="ed-taches"></div>
       <p><button class="btn secondaire" id="btn-csv">⬇ Exporter le tableau (CSV pour tableur)</button></p></div>
     <div class="carte"><div class="diag-barre" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><h2 style="flex:1;margin:0">Diagramme de Gantt</h2>
       <button class="btn secondaire" id="btn-imp-planning">🖨️ Imprimer le planning</button></div>
-      <div class="defile" id="gantt" style="margin-top:.6rem"></div><div id="legende" class="aide" style="margin-top:.5rem"></div></div>`;
+      <div class="defile" id="gantt" style="margin-top:.6rem"></div><div id="legende" class="aide" style="margin-top:.5rem"></div>
+      <p class="aide">Colonne bleue = semaine en cours ; lignes jaunes = tâches de la semaine.</p></div>`;
   const maj = () => {
+    $('#aujourdhui').innerHTML = htmlAujourdhui();
     $('#bilan').innerHTML = htmlBilan(bilanHeures());
     $('#gantt').innerHTML = svgGantt();
     $('#legende').innerHTML = [...projet.eleves.map(e => e.uid), 'equipe'].map(r => `<span style="display:inline-flex;align-items:center;gap:.3rem;margin-right:1rem"><span style="width:.9rem;height:.9rem;border-radius:3px;background:${couleurResponsable(r)}"></span>${esc(nomResponsable(r))}</span>`).join('');
@@ -1834,6 +1911,7 @@ function ongletPlanning(c) {
     onChange: () => { modifie(); maj(); }
   });
   $('#p-hps').oninput = e => { projet.planning.hps = nombre(e.target.value) || ''; modifie(); maj(); };
+  $('#p-debut').onchange = e => { projet.planning.debut = e.target.value; modifie(); maj(); };
   $('#p-sem').oninput = e => { projet.planning.semaines = Math.round(nombre(e.target.value)) || ''; modifie(); maj(); };
   $('#btn-csv').onclick = exporterCSV;
   $('#btn-imp-planning').onclick = () => imprimer('planning');
@@ -2040,6 +2118,10 @@ function activerInstallation() {
   // Demande au navigateur de ne pas effacer les données (projets) en cas de manque de place
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && projet && ongletActif === 'planning') afficherOnglet('planning');
+});
 
 (async function demarrer() {
   appliquerTheme(themeInitial());

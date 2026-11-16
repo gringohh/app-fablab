@@ -12,6 +12,7 @@ Ouvrir `index.html` dans un navigateur récent (Firefox, Chrome, Edge). C'est to
 - **Onglets** : Fiche projet, Équipe et tâches, Exigences, Cas d'utilisation, Contexte, Planning, Export PDF.
 - **Diagrammes** : mis à jour en direct ; les éléments se déplacent à la souris ; « Réorganiser » rétablit la mise en page automatique.
 - **Planning** : chaque élève dispose de 36 h (Première) ou 72 h (Terminale). Les tâches « Toute l'équipe » comptent pour chaque élève. Une alerte apparaît en cas de dépassement.
+- **Repère du jour** : dans l'onglet Planning, un bandeau « Aujourd'hui » indique la séance (Seconde) ou la semaine du projet (Première, Terminale) et les tâches à faire ; la colonne du jour est en bleu et les tâches du jour en jaune dans le Gantt. En Première et Terminale, renseigner la « Date de début (semaine 1) ». Ce repère n'apparaît pas sur les fiches imprimées.
 - **Sauvegarde** : automatique dans le navigateur (localStorage). « Exporter JSON » pour rendre le projet ou le reprendre sur un autre poste.
 - **PDF** : onglet « Export PDF » → « Imprimer / Enregistrer en PDF » → imprimante « Enregistrer au format PDF », format A4.
 
