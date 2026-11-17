@@ -33,7 +33,8 @@ Parcours simplifié : fiche courte (nom du projet, nom de l'équipe, classe, bes
 - **Fiche équipe** : nom d'équipe, véhicule, catégorie, établissement, académie, Centre de Ressources, lien avec le thème.
 - **Équipe et rôles** : 4 à 6 membres, les 6 rôles officiels (annexe 1), règles de l'équipe.
 - **Véhicule** : contrôle technique (350 × 125 × 150 mm max, garde au sol ≥ 1 mm, roues motrices 56 à 62 mm, ≥ 3 roues, ≥ 2 attaches, montage/démontage ≤ 2 min, + les 15 points de l'annexe 2) avec ✓/⚠ automatiques.
-- **Stand** (2 m × 1,50 m × 2 m), **Budget** (2 000 € max, recettes / dépenses / solde), **Planning** (Gantt, heures par élève réglables).
+- **Stand** (2 m × 1,50 m × 2 m), **Budget** (2 000 € max, recettes / dépenses / solde).
+- **Planning par séances** : chaque lundi, 3 h d'IT, du 7/09/2026 au 31/05/2027, hors vacances de la zone B, lundi de Pâques et lundi de Pentecôte (28 séances, 84 h). Tâches à plusieurs élèves, logiciel / machine (3DEXPERIENCE, SOLIDWORKS, usinage…), Gantt par séance, repère du jour. Calendrier modifiable par le professeur (`CALENDRIERS` en tête du script).
 - **Livrables et calendrier** (portfolio A4 avec Gantt et budget, 2 véhicules, soutenance 8 min dont 1 min en anglais… ; finales avec compte à rebours).
 - **Épreuves** : les 6 épreuves et 19 critères, avec auto-évaluation Bas / Moyen / Haut.
 - **Export PDF** : 3 pages (fiche équipe, contrôle technique, stand / budget / livrables) + planning en option.

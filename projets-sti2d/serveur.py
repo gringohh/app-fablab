@@ -112,8 +112,8 @@ def bilan_heures(projet):
         except (TypeError, ValueError):
             return 0.0
 
-    if projet.get("niveau") == "seconde":
-        # Seconde : heures disponibles = total des séances de l'année ;
+    if projet.get("niveau") in ("seconde", "cec"):
+        # Seconde et Course en Cours : heures disponibles = total des séances de l'année ;
         # une tâche faite à plusieurs compte pour chaque élève qui y participe
         limite = sum(duree(x) for x in projet.get("seances") or [])
         depassements = []
@@ -122,9 +122,6 @@ def bilan_heures(projet):
             if h > limite + 1e-9:
                 depassements.append(f"{e.get('nom') or 'élève'} ({h:g} h)")
         return depassements
-
-    if projet.get("niveau") == "cec":   # Course en Cours : heures par élève réglées dans le planning
-        limite = duree({"duree": (projet.get("planning") or {}).get("heures")}) or limite
 
     equipe = sum(duree(t) for t in taches if t.get("responsable") == "equipe")
     depassements = []
