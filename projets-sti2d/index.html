@@ -167,7 +167,7 @@ table.tl textarea{min-height:2.6rem}
 .accueil{max-width:1200px;margin:0 auto;padding:2rem 1rem 4rem}
 .accueil header{text-align:center;margin-bottom:1.6rem}
 .accueil header p{color:var(--muted);max-width:62ch;margin:.3rem auto 0}
-.niveaux{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1rem}
+.niveaux{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:1rem}
 .niveau{display:flex;flex-direction:column;gap:.7rem}
 .niveau .tag{display:inline-block;font-size:.8rem;font-weight:700;padding:.15rem .55rem;border-radius:999px;background:var(--primary-soft);color:var(--primary)}
 .niveau ul{margin:0;padding-left:1.2rem;color:var(--muted);font-size:.92rem}
@@ -471,6 +471,7 @@ function seancesParDefaut() {
 /* Paramètres propres à chaque niveau */
 const NIVEAUX = {
   seconde:   { label:'Seconde SI-CIT', court:'Seconde', heures:0, hps:1.5, semaines:0, modele:'Fiche projet mini « Course en cours » (2 pages)' },
+  cec:       { label:'Course en Cours', court:'Course en Cours', heures:36, hps:2, semaines:30, modele:'Course en Cours — règlement officiel 2026-2027', heuresReglables:true },
   premiere:  { label:'Première STI2D', court:'Première', heures:36, hps:3, semaines:12, modele:'Fiche de définition du projet (modèle « Serre automatique »)' },
   terminale: { label:'Terminale 2I2D', court:'Terminale', heures:72, hps:4, semaines:18, modele:'Fiche de présentation du projet de 2I2D (v3, 3 pages)' }
 };
@@ -553,6 +554,7 @@ function nouvelEleve(niveau) {
 /* Nombre d'heures de projet par élève (réglable en Seconde, fixé par le programme ensuite) */
 function limiteHeures(p = projet) {
   if (p.niveau === 'seconde') return arrondi((p.seances || []).reduce((s, x) => s + nombre(x.duree), 0));   // toutes les séances de l'année
+  if (NIVEAUX[p.niveau].heuresReglables) return nombre(p.planning.heures) || NIVEAUX[p.niveau].heures;         // Course en Cours : réglable
   return NIVEAUX[p.niveau].heures;
 }
 
@@ -569,7 +571,8 @@ function projetVide(niveau) {
     fiche: { intitule:'', lycee:'', enseignant:'', theme:'', besoin:'', finalite:'', probleme:'', production:'',
              session:'', uai:'', thematique:'', thematiqueAutre:'', professeurs:'', stem:'',
              classe:'', materiel:'', aQui:'', surQuoi:'', but:'',             // Seconde
-             equipe:'', logiciels:[], voitureL:'', voiturel:'', voitureH:'', standL:'', standl:'' },
+             equipe:'', logiciels:[], voitureL:'', voiturel:'', voitureH:'', standL:'', standl:'',
+             academie:'', centreRessources:'', categorie:'', lienTheme:'' },                  // Course en Cours
     eleves: [nouvelEleve(niveau)],
     exigences: [],      // {uid, id, texte, critere, niveau, relation (uid parent), typeRel}
     acteurs: [],        // {uid, nom}
@@ -597,6 +600,8 @@ function normaliser(p) {
   r.options = Object.assign({ diagrammes:true, planning:false }, p.options || {});
   r.envoi = Object.assign({ equipe:'' }, p.envoi || {});
   r.cec = Object.assign(cecVide(), p.cec || {});
+  if (!r.fiche.equipe && r.cec.equipe) r.fiche.equipe = r.cec.equipe;            // anciens fichiers
+  if (!r.fiche.lienTheme && r.cec.lienTheme) r.fiche.lienTheme = r.cec.lienTheme;
   ['mesures', 'coches', 'roles', 'auto'].forEach(k => { if (!r.cec[k] || typeof r.cec[k] !== 'object') r.cec[k] = {}; });
   r.cec.dates = Object.assign(cecVide().dates, r.cec.dates || {});
   if (!Array.isArray(r.cec.budget)) r.cec.budget = [];
@@ -675,6 +680,66 @@ function exempleSeconde() {
     ['Course et présentation finale', tous, '', 2, S.length - 1]
   ];
   p.taches = t.map(([nom, eleves, outil, duree, i]) => ({ uid: uid(), nom, eleves: [...eleves], outil, duree, seance: S[Math.min(i, S.length - 1)].uid }));
+  return p;
+}
+
+/* ---------- Exemple Course en Cours : la Wyverne ---------- */
+function exempleCec() {
+  const p = projetVide('cec');
+  p.fiche = Object.assign(p.fiche, {
+    intitule: 'La Wyverne',
+    equipe: 'Les Dragons de Brocéliande',
+    categorie: 'Lycée',
+    enseignant: 'M. Durand',
+    lycee: 'Lycée (exemple)',
+    academie: 'Lille',
+    centreRessources: 'Centre de Ressources de l’académie (à compléter)',
+    lienTheme: "Notre véhicule s'inspire de la wyverne, le dragon des légendes : carrosserie en écailles, ailerons en forme d'ailes repliées et regard lumineux à LED.",
+    production: "Un véhicule fin et léger dont la carrosserie évoque un dragon, et un stand en forme de forêt de Brocéliande réalisé en bois de récupération."
+  });
+  p.eleves = avecUid([
+    { nom:'Camille', tache:'Planning, budget, réunions et lien avec le Centre de Ressources.' },
+    { nom:'Yanis',   tache:'Modélisation 3D de la carrosserie et du châssis sur la 3DEXPERIENCE.' },
+    { nom:'Mehdi',   tache:'Application Arduino : récupérer la télémétrie du moteur et allumer les yeux du dragon.' },
+    { nom:'Sarah',   tache:'Fabrication des pièces, assemblage et essais sur la piste.' },
+    { nom:'Léa',     tache:'Identité visuelle : logo, couleurs, tenues et stand.' },
+    { nom:'Nathan',  tache:'Communication, recherche de sponsors et portfolio.' }
+  ]);
+  const [camille, yanis, mehdi, sarah, lea, nathan] = p.eleves.map(e => e.uid);
+  Object.assign(p.cec, {
+    roles: { chef:[camille], conception:[yanis], numerique:[mehdi], fabrication:[sarah], design:[lea], communication:[nathan] },
+    mesures: { longueur:320, largeur:118, hauteur:95, garde:4, diametre:60, roues:4, attaches:2, montage:95, demontage:80, standL:180, standP:120, standH:190 },
+    coches: { coupant:true, moteur:true, lcd:true, antenne:true, propulsion:true, air:true, theme:true, finale:true, nom:true, rolesOk:true, logos:true, noms:true, materiaux:true, gantt:true, acces3dx:true }
+  });
+  p.cec.budget = [
+    ['2026-10-01', 'Adhésion et pack Course en Cours (payés par le lycée)', 80, 80],
+    ['2026-10-15', 'Don du lycée', 150, 0],
+    ['2026-11-20', 'Sponsor : commerce du quartier', 200, 0],
+    ['2026-12-10', 'Filament PLA et roulements', 0, 45],
+    ['2027-01-15', 'Électronique : carte Arduino, LED, câbles', 0, 65],
+    ['2027-02-05', 'Usinage de 2 véhicules par le Centre de Ressources (valorisation)', 150, 150],
+    ['2027-03-12', 'Bois de récupération pour le stand (10 % du prix du neuf)', 25, 25],
+    ['2027-03-20', 'Tee-shirts de l’équipe (6)', 0, 60],
+    ['2027-04-02', 'Peinture et vernis', 0, 40],
+    ['2027-04-09', 'Impression des affiches et du portfolio', 0, 50],
+    ['2027-04-09', 'Pièces de rechange (roues avant et arrière)', 0, 30],
+    ['2027-05-01', 'Restitution au lycée d’une partie de son don', 0, 60]
+  ].map(([date, intitule, recette, depense]) => ({ uid: uid(), date, intitule, recette, depense }));
+  // Planning (semaines de 2 h ; 36 h par élève)
+  const t = [
+    ['Analyse du règlement et cahier des charges', 'equipe', 4, 1],
+    ['Recherche d’idées et croquis autour du thème', 'equipe', 4, 3],
+    ['Planning, budget et suivi du projet', camille, 8, 5],
+    ['Modélisation 3D de la carrosserie', yanis, 10, 5],
+    ['Identité visuelle : logo, couleurs, tenues', lea, 10, 5],
+    ['Recherche de sponsors et réseaux sociaux', nathan, 10, 6],
+    ['Application Arduino et télémétrie', mehdi, 10, 8],
+    ['Fabrication, assemblage et essais', sarah, 10, 12],
+    ['Contrôle technique « à blanc »', 'equipe', 2, 20],
+    ['Préparer la soutenance (8 min, dont 1 min en anglais)', 'equipe', 4, 22]
+  ];
+  p.taches = t.map(([nom, responsable, duree, semaine]) => ({ uid: uid(), nom, responsable, duree, semaine }));
+  p.planning.debut = '2026-09-14';
   return p;
 }
 
@@ -957,12 +1022,14 @@ function afficherAccueil() {
         <button class="btn grand" data-action="reprendre">Reprendre ▸</button>
       </div>` : ''}
     <div class="niveaux">
-      ${['seconde','premiere','terminale'].map(n => `
+      ${['seconde','premiere','terminale','cec'].map(n => `
       <div class="carte niveau">
-        <div><span class="tag">${n === 'seconde' ? 'Toute l’année · simplifié' : `Projet de ${NIVEAUX[n].heures} h`}</span></div>
+        <div><span class="tag">${n === 'seconde' ? 'Toute l’année · simplifié' : n === 'cec' ? `Concours ${CEC.saison}` : `Projet de ${NIVEAUX[n].heures} h`}</span></div>
         <h2>${NIVEAUX[n].label}</h2>
         <ul>
-          ${n === 'seconde'
+          ${n === 'cec'
+            ? `<li>Thème « ${esc(CEC.theme)} »</li><li>Contrôle technique du véhicule et du stand (règlement officiel)</li><li>Équipe de 4 à 6, rôles, budget (2 000 € max)</li><li>Planning, livrables, 19 critères, calendrier des finales</li>`
+            : n === 'seconde'
             ? `<li>Mini « Course en cours » sur toute l'année</li><li>Fiche courte, règlement (voiture 100 mm, socle 150 × 150 mm)</li><li>Bête à cornes et diagramme de contexte</li><li>Groupes de 4 à 6, planning des vendredis</li>`
             : n === 'premiere'
             ? `<li>Fiche de définition : thème sociétal, besoin, problème technique</li><li>Répartition des tâches par domaine (Énergie, Information, Matière)</li><li>Exemple : « Serre automatique »</li><li>Diagrammes SysML et planning de Gantt</li>`
@@ -987,7 +1054,7 @@ function afficherAccueil() {
     const a = b.dataset.action, n = b.dataset.niveau;
     if (a === 'reprendre') ouvrirProjet(s);
     else if (a === 'nouveau') { if (confirmerRemplacement()) ouvrirProjet(projetVide(n)); }
-    else if (a === 'exemple') { if (confirmerRemplacement()) { ouvrirProjet({ seconde: exempleSeconde, premiere: exemplePremiere, terminale: exempleTerminale }[n]()); notifier('Exemple chargé : modifiez-le librement.'); } }
+    else if (a === 'exemple') { if (confirmerRemplacement()) { ouvrirProjet({ seconde: exempleSeconde, premiere: exemplePremiere, terminale: exempleTerminale, cec: exempleCec }[n]()); notifier('Exemple chargé : modifiez-le librement.'); } }
     else if (a === 'ouvrir') importerJSON();
   };
   $('#btn-theme').onclick = basculerTheme;
@@ -998,14 +1065,19 @@ function afficherAccueil() {
    ===================================================================== */
 const ONGLETS = [
   ['fiche', 'Fiche projet'], ['equipe', 'Équipe et tâches'], ['exigences', 'Exigences'],
-  ['cas', "Cas d'utilisation"], ['contexte', 'Contexte'], ['planning', 'Planning'], ['cec', 'Course en Cours'], ['export', 'Export PDF']
+  ['cas', "Cas d'utilisation"], ['contexte', 'Contexte'], ['planning', 'Planning'], ['export', 'Export PDF']
 ];
 /* Seconde : parcours simplifié (bête à cornes à la place des exigences et cas d'utilisation) */
 const ONGLETS_SECONDE = [
   ['fiche', 'Fiche projet'], ['equipe', 'Qui fait quoi ?'], ['betecornes', 'Bête à cornes'],
-  ['contexte', 'Contexte'], ['planning', 'Planning'], ['cec', 'Course en Cours'], ['export', 'Export PDF']
+  ['contexte', 'Contexte'], ['planning', 'Planning'], ['export', 'Export PDF']
 ];
-const ongletsDuNiveau = () => projet.niveau === 'seconde' ? ONGLETS_SECONDE : ONGLETS;
+/* Course en Cours : parcours dédié au concours */
+const ONGLETS_CEC = [
+  ['fiche', 'Fiche équipe'], ['equipe', 'Équipe et rôles'], ['vehicule', 'Véhicule'], ['stand', 'Stand'], ['budget', 'Budget'],
+  ['planning', 'Planning'], ['livrables', 'Livrables et calendrier'], ['epreuves', 'Épreuves'], ['export', 'Export PDF']
+];
+const ongletsDuNiveau = () => ({ seconde: ONGLETS_SECONDE, cec: ONGLETS_CEC }[projet.niveau] || ONGLETS);
 
 function ouvrirProjet(p) {
   projet = p; ongletActif = 'fiche';
@@ -1054,7 +1126,9 @@ function afficherOnglet(nom) {
   // Nouveau conteneur à chaque onglet : les gestionnaires d'événements de l'onglet précédent disparaissent
   const ancien = $('#contenu'), c = ancien.cloneNode(false);
   ancien.replaceWith(c);
-  ({ fiche: ongletFiche, equipe: ongletEquipe, exigences: ongletExigences, cas: ongletCas, betecornes: ongletBeteACornes, cec: ongletCec,
+  ({ fiche: ongletFiche, equipe: ongletEquipe, exigences: ongletExigences, cas: ongletCas, betecornes: ongletBeteACornes,
+     vehicule: c => rendreCec(c, ['vehicule']), stand: c => rendreCec(c, ['stand']), budget: c => rendreCec(c, ['budget']),
+     livrables: c => rendreCec(c, ['livrables', 'calendrier']), epreuves: c => rendreCec(c, ['epreuves']),
      contexte: ongletContexte, planning: ongletPlanning, export: ongletExport })[nom](c);
 }
 
@@ -1174,6 +1248,20 @@ function editeurListe(cont, cfg) {
 /* Description des champs de la fiche pour chaque niveau.
    max = longueur conseillée pour que la fiche imprimée reste lisible. */
 const CHAMPS = {
+  cec: [
+    { titre:'Notre équipe', champs:[
+      { k:'equipe', label:'Nom de l’équipe (en lien avec le thème)', ph:'Ex. : Les Dragons de Brocéliande', max:60 },
+      { k:'intitule', label:'Nom du véhicule / du projet', ph:'Ex. : La Wyverne', max:60 },
+      { k:'categorie', label:'Catégorie', type:'select', options:['Collège', 'Lycée'], court:true },
+      { k:'enseignant', label:'Professeur responsable', ph:'Ex. : M. Durand', court:true } ]},
+    { titre:'Établissement', champs:[
+      { k:'lycee', label:'Établissement', ph:'Nom du collège ou du lycée', court:true },
+      { k:'academie', label:'Académie', ph:'Ex. : Lille', court:true },
+      { k:'centreRessources', label:'Centre de Ressources', ph:'Nom du Centre de Ressources de l’académie', court:true } ]},
+    { titre:`Le thème « ${CEC.theme} »`, champs:[
+      { k:'lienTheme', label:'Comment notre véhicule s’inspire-t-il du thème ?', type:'textarea', max:500, aide:'Le design du véhicule, le nom d’équipe, les tenues et le stand doivent être en lien avec le thème.' },
+      { k:'production', label:'Notre véhicule et notre stand en quelques mots', type:'textarea', max:500 } ]}
+  ],
   seconde: [
     { titre:'Notre projet', champs:[
       { k:'intitule', label:'Nom du projet', ph:'Ex. : Mini Course en cours : le Bolide', max:70 },
@@ -1241,8 +1329,8 @@ function ongletFiche(c) {
       <span class="aide" data-err="${d.k}" style="color:${err.startsWith('✓') ? 'var(--ok)' : 'var(--danger)'}">${esc(err)}</span></div>`;
   };
   const rendre = () => {
-    c.innerHTML = `<p class="intro">Modèle : ${esc(NIVEAUX[projet.niveau].modele)}. Tout est enregistré automatiquement dans ce navigateur.
-      ${projet.niveau === 'seconde' ? '' : projet.niveau === 'premiere' ? 'L\'effectif du groupe est calculé à partir de la liste des élèves (onglet « Équipe et tâches »).' : 'L\'effectif et la composition de l\'équipe sont calculés à partir de la liste des élèves (onglet « Équipe et tâches »).'}</p>` +
+    c.innerHTML = (projet.niveau === 'cec' ? bandeauCec() : '') + `<p class="intro">Modèle : ${esc(NIVEAUX[projet.niveau].modele)}. Tout est enregistré automatiquement dans ce navigateur.
+      ${projet.niveau === 'seconde' || projet.niveau === 'cec' ? '' : projet.niveau === 'premiere' ? 'L\'effectif du groupe est calculé à partir de la liste des élèves (onglet « Équipe et tâches »).' : 'L\'effectif et la composition de l\'équipe sont calculés à partir de la liste des élèves (onglet « Équipe et tâches »).'}</p>` +
       CHAMPS[projet.niveau].map(s => `<div class="carte"><h2>${esc(s.titre)}</h2><div class="${s.champs.every(x => x.court || x.k === 'intitule') ? 'ligne-champs' : ''}">${s.champs.map(champ).join('')}</div></div>`).join('');
   };
   rendre();
@@ -1272,6 +1360,7 @@ function ongletFiche(c) {
    ===================================================================== */
 function ongletEquipe(c) {
   if (projet.niveau === 'seconde') return ongletEquipeSeconde(c);
+  if (projet.niveau === 'cec') return ongletEquipeCec(c);
   const ter = projet.niveau === 'terminale';
   c.innerHTML = `
     <p class="intro">${ter ? 'Indiquez chaque élève (5 au maximum), sa spécialité et la tâche dont il est responsable.' : 'Indiquez chaque élève (5 au maximum), sa tâche et le domaine auquel elle se rattache : Énergie, Information ou Matière.'}</p>
@@ -2033,6 +2122,7 @@ function ongletPlanning(c) {
       <div class="ligne-champs" style="max-width:640px">
         <div class="champ"><label for="p-hps">Heures de projet par semaine</label><input type="number" id="p-hps" min="0.5" step="0.5" value="${esc(projet.planning.hps)}"></div>
         <div class="champ"><label for="p-sem">Nombre de semaines</label><input type="number" id="p-sem" min="1" step="1" value="${esc(projet.planning.semaines)}"></div>
+        ${N.heuresReglables ? `<div class="champ"><label for="p-heures">Heures de projet par élève</label><input type="number" id="p-heures" min="1" step="0.5" value="${esc(limiteHeures())}"></div>` : ''}
         <div class="champ"><label for="p-debut">Date de début (semaine 1)</label><input type="date" id="p-debut" value="${esc(projet.planning.debut || '')}"></div>
       </div>
       <div id="ed-taches"></div>
@@ -2064,6 +2154,7 @@ function ongletPlanning(c) {
     onChange: () => { modifie(); maj(); }
   });
   $('#p-hps').oninput = e => { projet.planning.hps = nombre(e.target.value) || ''; modifie(); maj(); };
+  if ($('#p-heures')) $('#p-heures').oninput = e => { projet.planning.heures = nombre(e.target.value) || ''; $('#lim-h').textContent = limiteHeures() + ' h'; modifie(); maj(); };
   $('#p-debut').onchange = e => { projet.planning.debut = e.target.value; modifie(); maj(); };
   $('#p-sem').oninput = e => { projet.planning.semaines = Math.round(nombre(e.target.value)) || ''; modifie(); maj(); };
   $('#btn-csv').onclick = exporterCSV;
@@ -2085,12 +2176,11 @@ function exporterCSV() {
 }
 
 /* =====================================================================
-   14 bis. ONGLET « COURSE EN COURS » (règlement officiel 2026-2027)
+   14 bis. PARCOURS « COURSE EN COURS » (règlement officiel 2026-2027)
    ---------------------------------------------------------------------
-   - Première / Terminale : contrôle technique du véhicule et du stand,
-     équipe et rôles, livrables, budget (2 000 € max), épreuves et
-     auto-évaluation des 19 critères, calendrier avec compte à rebours.
-   - Seconde : découverte du vrai concours et comparaison avec la mini version.
+   Niveau à part entière (carte sur la page d'accueil), avec ses onglets :
+   fiche équipe, équipe et rôles, véhicule (contrôle technique), stand,
+   budget (2 000 € max), planning, livrables et calendrier, épreuves (19 critères).
    ===================================================================== */
 /* Vérifie une mesure par rapport au règlement : '' (non saisie), 'ok' ou 'ko' */
 function etatMesure(d, v) {
@@ -2136,100 +2226,75 @@ function echeancesCec() {
 }
 const joursAvant = iso => Math.round((lireDate(iso) - aujourdhui()) / 86400000);
 
-function ongletCec(c) {
-  const C = projet.cec, sec = projet.niveau === 'seconde';
-  const intro = `<div class="carte"><div class="cec-entete"><div style="flex:1;min-width:15rem">
-      <div class="aide">Concours Course en Cours — saison ${CEC.saison}</div>
-      <div class="theme">Thème : « ${esc(CEC.theme)} »</div>
-      <p class="aide" style="margin:.3rem 0 0">D'après le règlement officiel ${CEC.saison}. Le Centre de Ressources de l'académie peut imposer des contraintes plus strictes : vérifiez auprès de lui.</p></div>
-      ${sec ? '' : `<button class="btn secondaire" id="btn-imp-cec">🖨️ Imprimer la fiche Course en Cours</button>`}</div></div>`;
-  const tableEpreuves = (avecAuto) => `<table class="cec-tab"><thead><tr><th>Épreuve</th><th>Critère (noté sur 20)</th>${avecAuto ? '<th>Où en êtes-vous ?</th>' : ''}</tr></thead><tbody>
-    ${CEC.epreuves.map(ep => ep.criteres.map(([k, l], i) => `<tr>${i === 0 ? `<td rowspan="${ep.criteres.length}"><b>${esc(ep.nom)}</b><br><span class="aide">${esc(ep.info)}</span></td>` : ''}<td>${esc(l)}</td>
-      ${avecAuto ? `<td><select data-auto="${k}">${[['', '—'], ['bas', 'Bas (1 à 7)'], ['moyen', 'Moyen (8 à 13)'], ['haut', 'Haut (14 à 20)']].map(([v, t]) => `<option value="${v}"${C.auto[k] === v ? ' selected' : ''}>${t}</option>`).join('')}</select></td>` : ''}</tr>`).join('')).join('')}
-    </tbody></table>
-    <p class="aide">Barème des épreuves classées (course, temps de réaction, conception collaborative) : ${CEC.bareme.map(([pl, pts]) => `${pl} = ${pts} pts`).join(' · ')}.</p>
-    <p class="aide"><b>Prix :</b> ${CEC.prix.join(' · ')} (1 prix au maximum par équipe ; un véhicule non conforme ne peut prétendre à aucun prix).<br><b>Trophées :</b> ${CEC.trophees.join(' · ')}.</p>`;
+/* Bandeau du concours (saison et thème) */
+const bandeauCec = () => `<div class="carte"><div class="cec-entete"><div style="flex:1;min-width:15rem">
+    <div class="aide">Concours Course en Cours — saison ${CEC.saison}</div>
+    <div class="theme">Thème : « ${esc(CEC.theme)} »</div>
+    <p class="aide" style="margin:.3rem 0 0">D'après le règlement officiel ${CEC.saison}. Le Centre de Ressources de l'académie peut imposer des contraintes plus strictes : vérifiez auprès de lui.</p></div></div></div>`;
 
-  if (sec) {
-    // ---------- Seconde : découverte du vrai concours ----------
-    c.innerHTML = `<p class="intro">Votre projet est une <b>mini version</b> de Course en Cours, avec son propre règlement (onglet « Fiche projet »).
-      Cet onglet présente le <b>vrai concours</b>, que font les élèves de Première STI2D.</p>${intro}
-      <div class="carte"><h2>Le vrai concours et notre mini version</h2>
-      <table class="cec-tab"><thead><tr><th></th><th>Course en Cours ${CEC.saison}</th><th>Notre mini version</th></tr></thead><tbody>
-        <tr><td><b>Équipe</b></td><td>4 à 6 élèves, des rôles précis</td><td>4 à 6 élèves</td></tr>
-        <tr><td><b>Voiture</b></td><td>350 × 125 × 150 mm maximum, au moins 3 roues, garde au sol ≥ 1 mm</td><td>${SECONDE.voitureMax} mm maximum dans chaque direction</td></tr>
-        <tr><td><b>Moteur</b></td><td>Bloc moteur électrique radiocommandé fourni (rapport 1 : 3), non modifiable</td><td>Moteur fourni par le professeur, le même pour tous</td></tr>
-        <tr><td><b>Sécurité</b></td><td>Au moins 2 attaches pour le fil de guidage</td><td>Guidage sur la piste</td></tr>
-        <tr><td><b>Stand</b></td><td>2 m × 1,50 m × 2 m maximum</td><td>Socle de ${SECONDE.standMax} × ${SECONDE.standMax} mm, hauteur libre</td></tr>
-        <tr><td><b>Course</b></td><td>Piste de 20 m maximum, temps de réaction, arrêt au stand, KO</td><td>Course de fin d'année</td></tr>
-        <tr><td><b>Budget</b></td><td>2 000 € maximum, sponsors</td><td>Pas de sponsors</td></tr>
-      </tbody></table></div>
-      <div class="carte"><h2>Les épreuves du vrai concours</h2>${tableEpreuves(false)}</div>`;
-    return;
-  }
-
-  // ---------- Première / Terminale : tableau de bord complet ----------
+/* Rendu des onglets Course en Cours : sections parmi roles, vehicule, stand, budget, livrables, calendrier, epreuves */
+function rendreCec(c, sections, avant = '') {
+  const C = projet.cec;
   const mesureHtml = d => { const e = etatMesure(d, C.mesures[d.k]); return `<div class="mesure"><label for="m-${d.k}">${esc(d.label)}</label><span class="limite">${esc(limiteTexte(d))}</span>
     <div class="saisie"><input type="number" id="m-${d.k}" data-mesure="${d.k}" value="${esc(C.mesures[d.k] ?? '')}" step="any" min="0" inputmode="decimal"><span>${esc(d.unite)}</span></div>
     <div class="statut ${e.etat}" data-statut="${d.k}">${e.txt}</div></div>`; };
   const cochesHtml = l => `<div class="coches">${l.map(([k, t]) => `<label class="${C.coches[k] ? 'fait' : ''}"><input type="checkbox" data-coche="${k}"${C.coches[k] ? ' checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>`;
-  const n = projet.eleves.length;
-  c.innerHTML = `${intro}
-    <div class="carte"><h2>Notre équipe et le thème</h2>
-      <div class="ligne-champs"><div class="champ"><label for="cec-equipe">Nom de l'équipe (en lien avec le thème)</label><input type="text" id="cec-equipe" data-cec="equipe" value="${esc(C.equipe)}" placeholder="Ex. : Les Dragons de Brocéliande"></div></div>
-      <div class="champ"><label for="cec-lien">Comment notre véhicule s'inspire-t-il du thème « ${esc(CEC.theme)} » ?</label><textarea id="cec-lien" data-cec="lienTheme" rows="2">${esc(C.lienTheme)}</textarea></div>
-      ${n < 4 || n > 6 ? `<div class="alerte warn">L'équipe compte ${n} élève${n > 1 ? 's' : ''} : le règlement impose 4 à 6 membres (onglet « Équipe et tâches »).</div>` : `<p class="aide">✓ ${n} membres (4 à 6 exigés).</p>`}
-      ${cochesHtml(CEC.equipe)}
-      <h3>Les rôles</h3><p class="aide">Chaque membre doit avoir au moins un rôle ; un élève peut en cumuler plusieurs. Touchez les prénoms.</p>
-      <div class="roles">${CEC.roles.map(([k, t, d]) => `<div class="role"><b>${esc(t)}</b><span class="aide">${esc(d)}</span><div class="puces">
-        ${projet.eleves.length ? projet.eleves.map(e => `<button type="button" class="puce${(C.roles[k] || []).includes(e.uid) ? ' on' : ''}" data-role="${k}" data-v="${e.uid}">${esc(nomResponsable(e.uid))}</button>`).join('') : '<span class="aide">Ajoutez les élèves dans l’onglet « Équipe et tâches ».</span>'}
-      </div></div>`).join('')}</div>
-      <div id="sans-role"></div></div>
-
-    <div class="carte"><h2>Contrôle technique du véhicule</h2>
-      <p class="aide">Pour être conforme, le véhicule doit respecter <b>tous</b> les critères (annexe 2 du règlement). Mesurez-le monté, avec son système de propulsion.</p>
+  const rolesHtml = () => `<div class="roles">${CEC.roles.map(([k, t, d]) => `<div class="role"><b>${esc(t)}</b><span class="aide">${esc(d)}</span><div class="puces">
+      ${projet.eleves.length ? projet.eleves.map(e => `<button type="button" class="puce${(C.roles[k] || []).includes(e.uid) ? ' on' : ''}" data-role="${k}" data-v="${e.uid}">${esc(nomResponsable(e.uid))}</button>`).join('') : '<span class="aide">Ajoutez d’abord les élèves ci-dessus.</span>'}
+    </div></div>`).join('')}</div>`;
+  const T = {
+    roles: () => `<div class="carte"><h2>Les rôles</h2><p class="aide">Chaque membre doit avoir au moins un rôle (annexe 1 du règlement) ; un élève peut en cumuler plusieurs. Touchez les prénoms.</p>
+      <div id="zone-roles">${rolesHtml()}</div><div id="sans-role"></div>
+      <h3 style="margin-top:1rem">Règles de l'équipe</h3>${cochesHtml(CEC.equipe)}</div>`,
+    vehicule: () => `<div class="carte"><h2>Contrôle technique du véhicule</h2>
+      <p class="aide">Pour être conforme, le véhicule doit respecter <b>tous</b> les critères (annexe 2 du règlement). Mesurez-le monté, avec son système de propulsion. Un véhicule non conforme ne peut prétendre à aucun prix.</p>
       <div class="resume" id="resume-vehicule"></div>
       <div class="mesures">${CEC.mesures.map(mesureHtml).join('')}</div>
-      <p class="aide">Masse du véhicule : libre.</p>
-      ${cochesHtml(CEC.vehicule)}</div>
-
-    <div class="carte"><h2>Le stand</h2><div class="resume" id="resume-stand"></div>
-      <div class="mesures">${CEC.stand.map(mesureHtml).join('')}</div>${cochesHtml(CEC.standCoches)}</div>
-
-    <div class="carte"><h2>Budget de l'équipe</h2>
-      <p class="aide">Limité à <b>${euros(CEC.budgetMax)}</b> par équipe (hors déplacements), prestations extérieures comprises. Un bon bilan est complet et a un solde proche de zéro.
+      <p class="aide">Masse du véhicule : libre. Prévoir 2 véhicules identiques pour les finales.</p>
+      ${cochesHtml(CEC.vehicule)}</div>`,
+    stand: () => `<div class="carte"><h2>Le stand</h2><p class="aide">Un stand non conforme n'est pas évalué par le jury.</p><div class="resume" id="resume-stand"></div>
+      <div class="mesures">${CEC.stand.map(mesureHtml).join('')}</div>${cochesHtml(CEC.standCoches)}</div>`,
+    budget: () => `<div class="carte"><h2>Budget de l'équipe</h2>
+      <p class="aide">Limité à <b>${euros(CEC.budgetMax)}</b> par équipe (hors déplacements), prestations extérieures comprises. Un bon bilan est complet et a un solde proche de zéro ; il est obligatoire dans le portfolio.
       Valorisation : matériel gratuit ou offert = 5 à 10 % du prix du neuf ; prêt ≈ 5 % du prix du neuf par jour ; récupération = 10 % du prix du neuf (à inscrire en recette <i>et</i> en dépense) ;
       usinage par le Centre de Ressources = 100 € pour 1 exemplaire, 150 € pour 2, 50 € par exemplaire supplémentaire. Adhésion 50 € + pack 30 € payés par l'établissement.</p>
-      <div id="bilan-budget"></div><div id="ed-budget"></div></div>
-
-    <div class="carte"><h2>Livrables et obligations</h2><div class="resume" id="resume-livrables"></div>${cochesHtml(CEC.livrables)}</div>
-
-    <div class="carte"><h2>Les épreuves et les 19 critères</h2>
+      <div id="bilan-budget"></div><div id="ed-budget"></div></div>`,
+    livrables: () => `<div class="carte"><h2>Livrables et obligations</h2><div class="resume" id="resume-livrables"></div>${cochesHtml(CEC.livrables)}</div>`,
+    calendrier: () => `<div class="carte"><h2>Calendrier</h2><p class="aide">Les dates des finales sont fixées par le Centre de Ressources de l'académie : renseignez-les dès que vous les connaissez.</p><div class="cal" id="cal"></div></div>`,
+    epreuves: () => `<div class="carte"><h2>Les 6 épreuves et les 19 critères</h2>
       <p class="aide">Pour chaque critère, estimez votre niveau actuel avec les grilles du jury (Bas, Moyen, Haut) : cela montre où travailler en priorité.</p>
-      <div class="resume" id="resume-auto"></div>${tableEpreuves(true)}</div>
+      <div class="resume" id="resume-auto"></div>
+      <table class="cec-tab"><thead><tr><th>Épreuve</th><th>Critère (noté sur 20)</th><th>Où en êtes-vous ?</th></tr></thead><tbody>
+      ${CEC.epreuves.map(ep => ep.criteres.map(([k, l], i) => `<tr>${i === 0 ? `<td rowspan="${ep.criteres.length}"><b>${esc(ep.nom)}</b><br><span class="aide">${esc(ep.info)}</span></td>` : ''}<td>${esc(l)}</td>
+        <td><select data-auto="${k}">${[['', '—'], ['bas', 'Bas (1 à 7)'], ['moyen', 'Moyen (8 à 13)'], ['haut', 'Haut (14 à 20)']].map(([v, t]) => `<option value="${v}"${C.auto[k] === v ? ' selected' : ''}>${t}</option>`).join('')}</select></td></tr>`).join('')).join('')}
+      </tbody></table>
+      <p class="aide">Barème des épreuves classées (course, temps de réaction, conception collaborative) : ${CEC.bareme.map(([pl, pts]) => `${pl} = ${pts} pts`).join(' · ')}.</p>
+      <p class="aide"><b>Prix :</b> ${CEC.prix.join(' · ')} (1 prix au maximum par équipe ; un véhicule non conforme ne peut prétendre à aucun prix).<br><b>Trophées :</b> ${CEC.trophees.join(' · ')}.</p></div>`
+  };
+  c.innerHTML = avant + sections.map(k => T[k]()).join('');
 
-    <div class="carte"><h2>Calendrier</h2><p class="aide">Les dates des finales sont fixées par le Centre de Ressources de l'académie : renseignez-les dès que vous les connaissez.</p>
-      <div class="cal" id="cal"></div></div>`;
-
-  /* --- mises à jour des résumés --- */
+  /* --- mises à jour des résumés (seulement les zones présentes) --- */
   const pastille = (ok, total, ko, mot) => `<span class="${ko ? 'ko' : ok === total ? 'ok' : ''}">${ko ? `⚠ ${ko} point${ko > 1 ? 's' : ''} non conforme${ko > 1 ? 's' : ''}` : ok === total ? `✓ ${mot}` : `${ok} / ${total} points vérifiés`}</span>`;
+  const zone = id => c.querySelector('#' + id);
   const maj = () => {
-    const v = bilanConformite(CEC.mesures, CEC.vehicule), st = bilanConformite(CEC.stand, CEC.standCoches);
-    $('#resume-vehicule').innerHTML = pastille(v.ok, v.total, v.ko, 'Véhicule conforme');
-    $('#resume-stand').innerHTML = pastille(st.ok, st.total, st.ko, 'Stand conforme');
-    const lv = CEC.livrables.filter(([k]) => C.coches[k]).length;
-    $('#resume-livrables').innerHTML = `<span class="${lv === CEC.livrables.length ? 'ok' : ''}">${lv} / ${CEC.livrables.length} faits</span>`;
-    const crit = CEC.epreuves.flatMap(e => e.criteres.map(x => x[0]));
-    const cpt = { bas: 0, moyen: 0, haut: 0 }; crit.forEach(k => { if (cpt[C.auto[k]] != null) cpt[C.auto[k]]++; });
-    $('#resume-auto').innerHTML = `<span class="ok">Haut : ${cpt.haut}</span><span>Moyen : ${cpt.moyen}</span><span class="${cpt.bas ? 'ko' : ''}">Bas : ${cpt.bas}</span><span>Non évalués : ${crit.length - cpt.haut - cpt.moyen - cpt.bas}</span>`;
-    const b = bilanBudget();
-    $('#bilan-budget').innerHTML = `<div class="resume"><span>Recettes : ${euros(b.recettes)}</span><span class="${b.depenses > CEC.budgetMax ? 'ko' : ''}">Dépenses : ${euros(b.depenses)}</span><span class="${Math.abs(b.solde) < 1 ? 'ok' : ''}">Solde : ${b.solde > 0 ? '+' : ''}${euros(b.solde)}</span></div>
-      ${b.depenses > CEC.budgetMax ? `<div class="alerte danger">⚠ Le budget dépasse ${euros(CEC.budgetMax)} : ce n'est pas autorisé par le règlement.</div>` : ''}`;
-    const avecRole = new Set(Object.values(C.roles).flat());
-    const sans = projet.eleves.filter(e => !avecRole.has(e.uid));
-    $('#sans-role').innerHTML = sans.length && projet.eleves.length ? `<div class="alerte warn" style="margin-top:.6rem">Sans rôle : ${sans.map(e => esc(nomResponsable(e.uid))).join(', ')}.</div>` : '';
-    // calendrier
-    $('#cal').innerHTML = echeancesCec().map(e => `<div class="cal-ligne${e.prochaine ? ' prochaine' : ''}${e.passee ? ' passee' : ''}">
+    if (zone('resume-vehicule')) { const v = bilanConformite(CEC.mesures, CEC.vehicule); zone('resume-vehicule').innerHTML = pastille(v.ok, v.total, v.ko, 'Véhicule conforme'); }
+    if (zone('resume-stand')) { const st = bilanConformite(CEC.stand, CEC.standCoches); zone('resume-stand').innerHTML = pastille(st.ok, st.total, st.ko, 'Stand conforme'); }
+    if (zone('resume-livrables')) { const lv = CEC.livrables.filter(([k]) => C.coches[k]).length; zone('resume-livrables').innerHTML = `<span class="${lv === CEC.livrables.length ? 'ok' : ''}">${lv} / ${CEC.livrables.length} faits</span>`; }
+    if (zone('resume-auto')) {
+      const crit = CEC.epreuves.flatMap(e => e.criteres.map(x => x[0])), cpt = { bas: 0, moyen: 0, haut: 0 };
+      crit.forEach(k => { if (cpt[C.auto[k]] != null) cpt[C.auto[k]]++; });
+      zone('resume-auto').innerHTML = `<span class="ok">Haut : ${cpt.haut}</span><span>Moyen : ${cpt.moyen}</span><span class="${cpt.bas ? 'ko' : ''}">Bas : ${cpt.bas}</span><span>Non évalués : ${crit.length - cpt.haut - cpt.moyen - cpt.bas}</span>`;
+    }
+    if (zone('bilan-budget')) {
+      const b = bilanBudget();
+      zone('bilan-budget').innerHTML = `<div class="resume"><span>Recettes : ${euros(b.recettes)}</span><span class="${b.depenses > CEC.budgetMax ? 'ko' : ''}">Dépenses : ${euros(b.depenses)}</span><span class="${Math.abs(b.solde) < 1 ? 'ok' : ''}">Solde : ${b.solde > 0 ? '+' : ''}${euros(b.solde)}</span></div>
+        ${b.depenses > CEC.budgetMax ? `<div class="alerte danger">⚠ Le budget dépasse ${euros(CEC.budgetMax)} : ce n'est pas autorisé par le règlement.</div>` : ''}`;
+    }
+    if (zone('sans-role')) {
+      const avecRole = new Set(Object.values(C.roles).flat()), sans = projet.eleves.filter(e => !avecRole.has(e.uid));
+      zone('sans-role').innerHTML = sans.length ? `<div class="alerte warn" style="margin-top:.6rem">Sans rôle : ${sans.map(e => esc(nomResponsable(e.uid))).join(', ')}.</div>` : '';
+    }
+    if (zone('cal')) zone('cal').innerHTML = echeancesCec().map(e => `<div class="cal-ligne${e.prochaine ? ' prochaine' : ''}${e.passee ? ' passee' : ''}">
       <div><b>${esc(e.label)}</b><br><span class="aide">${e.fixe ? `du ${dateLongue(e.debut)} au ${dateLongue(e.date)} 2026` : e.calc ? (e.date ? `au plus tard le ${dateLongue(e.date)} (1 semaine avant la finale académique)` : 'renseignez la date de la finale académique') : ''}</span>
       ${e.date && !e.passee ? `<br><span class="compte">${joursAvant(e.date) === 0 ? 'Aujourd’hui !' : `dans ${joursAvant(e.date)} jour${joursAvant(e.date) > 1 ? 's' : ''}`}</span>` : e.passee ? '<br><span class="aide">✓ passé</span>' : ''}</div>
       ${e.fixe || e.calc ? '' : `<input type="date" data-date="${e.k}" value="${esc(e.date || '')}" aria-label="${esc(e.label)}">`}</div>`).join('');
@@ -2241,9 +2306,8 @@ function ongletCec(c) {
     if (el.dataset.mesure) {
       C.mesures[el.dataset.mesure] = el.value === '' ? '' : nombre(el.value);
       const d = [...CEC.mesures, ...CEC.stand].find(x => x.k === el.dataset.mesure), st = etatMesure(d, C.mesures[d.k]);
-      const zone = c.querySelector(`[data-statut="${d.k}"]`); zone.className = 'statut ' + st.etat; zone.textContent = st.txt;
-    } else if (el.dataset.cec) C[el.dataset.cec] = el.value;
-    else if (el.dataset.auto) C.auto[el.dataset.auto] = el.value;
+      const z = c.querySelector(`[data-statut="${d.k}"]`); z.className = 'statut ' + st.etat; z.textContent = st.txt;
+    } else if (el.dataset.auto) C.auto[el.dataset.auto] = el.value;
     else return;
     sauver(); maj();
   };
@@ -2260,7 +2324,7 @@ function ongletCec(c) {
     if (i >= 0) t.splice(i, 1); else t.push(b.dataset.v);
     b.classList.toggle('on', i < 0); sauver(); maj();
   };
-  editeurListe($('#ed-budget'), {
+  if (zone('ed-budget')) editeurListe(zone('ed-budget'), {
     items: C.budget, ajouter: 'Ajouter une ligne', nouveau: () => ({ uid: uid(), date: isoDate(aujourdhui()), intitule: '', recette: '', depense: '' }),
     colonnes: [
       { k:'date', label:'Date', type:'date', largeur:'9.5rem' },
@@ -2270,20 +2334,62 @@ function ongletCec(c) {
     ],
     onChange: () => { sauver(); maj(); }
   });
-  $('#btn-imp-cec').onclick = () => imprimer('cec');
   maj();
+  return { maj, rafraichirRoles: () => { if (zone('zone-roles')) zone('zone-roles').innerHTML = rolesHtml(); maj(); } };
 }
 
-/* Fiche imprimable Course en Cours : page 1 = contrôle technique du véhicule ; page 2 = stand, équipe, budget, livrables */
-function feuillesCec() {
-  return [(total, n) => feuilleCec(n, total), (total, n) => feuilleCec2(n, total)];
+/* Onglet « Équipe et rôles » : élèves (4 à 6), rôles officiels et règles de l'équipe */
+function ongletEquipeCec(c) {
+  const vue = rendreCec(c, ['roles'], `<p class="intro">L'équipe compte 4 à 6 élèves de collège et/ou de lycée, encadrés par un professeur. Un membre ne peut pas avoir déjà participé à une finale nationale.</p>
+    <div class="carte"><h2>Les membres de l'équipe</h2><div id="ed-eleves"></div><div id="nb-cec"></div></div>`);
+  const nb = () => { const n = projet.eleves.length;
+    $('#nb-cec').innerHTML = n < 4 || n > 6 ? `<div class="alerte warn">${n} élève${n > 1 ? 's' : ''} : le règlement impose 4 à 6 membres.</div>` : `<p class="aide">✓ ${n} membres (4 à 6 exigés).</p>`; };
+  editeurListe($('#ed-eleves'), {
+    items: projet.eleves, max: 6, ajouter: 'Ajouter un élève', nouveau: () => nouvelEleve(projet.niveau),
+    colonnes: [
+      { k:'nom', label:'Prénom NOM', ph:'Ex. : Camille', largeur:'26%', structurel:true },
+      { k:'tache', label:'Ce dont je m’occupe', type:'textarea', ph:'Ex. : modélisation 3D de la carrosserie' }
+    ],
+    onChange: (structurel) => { modifie(); nb(); if (structurel) vue.rafraichirRoles(); }
+  });
+  nb();
+}
+
+/* Fiches imprimées du parcours Course en Cours :
+   1) fiche équipe et calendrier ; 2) contrôle technique du véhicule ; 3) stand, budget, livrables ; (+ planning) */
+function feuillesCecProjet(avecPlanning) {
+  const pages = [(t, n) => feuilleCecEquipe(n, t), (t, n) => feuilleCec(n, t), (t, n) => feuilleCec2(n, t)];
+  if (avecPlanning) pages.push((t, n) => feuillePlanning(n, t));
+  return pages;
+}
+function feuilleCecEquipe(n, total) {
+  const f = projet.fiche, C = projet.cec;
+  return `${entete('Course en Cours ' + CEC.saison, `Fiche équipe — thème « ${CEC.theme} »`, n, total)}
+    <table class="f-tab">
+      <tr><th>Nom de l'équipe</th><td colspan="3"><b>${val(f.equipe)}</b></td></tr>
+      <tr><th>Véhicule / projet</th><td>${val(f.intitule)}</td><th style="width:26mm">Catégorie</th><td>${val(f.categorie)}</td></tr>
+      <tr><th>Établissement</th><td>${val(f.lycee)}</td><th style="width:26mm">Académie</th><td>${val(f.academie)}</td></tr>
+      <tr><th>Centre de Ressources</th><td colspan="3">${val(f.centreRessources)}</td></tr>
+      <tr><th>Professeur responsable</th><td colspan="3">${val(f.enseignant)}</td></tr>
+    </table>
+    ${bloc(`Lien avec le thème « ${CEC.theme} »`, f.lienTheme)}
+    ${bloc('Notre véhicule et notre stand', f.production)}
+    <table class="f-tab"><thead><tr><th style="width:32mm">Élève</th><th style="width:52mm">Rôle(s)</th><th>Ce dont il ou elle s'occupe</th></tr></thead><tbody>
+      ${Array.from({ length: 6 }, (_, i) => { const e = projet.eleves[i];
+        const roles = e ? CEC.roles.filter(([k]) => (C.roles[k] || []).includes(e.uid)).map(r => r[1]).join(', ') : '';
+        return `<tr><td><b>${e && e.nom ? esc(e.nom) : 'Élève ' + (i + 1)}</b></td><td>${esc(roles)}</td><td style="white-space:pre-wrap;height:7mm">${e ? esc(e.tache) : ''}</td></tr>`; }).join('')}
+    </tbody></table>
+    <table class="f-tab"><thead><tr><th>Calendrier</th><th style="width:48mm">Date</th></tr></thead><tbody>
+      ${echeancesCec().map(e => `<tr><td>${esc(e.label)}</td><td class="c">${e.fixe ? `${dateCourte(e.debut)} → ${dateCourte(e.date)}/2026` : e.date ? esc(lireDate(e.date).toLocaleDateString('fr-FR')) : ''}</td></tr>`).join('')}
+    </tbody></table>
+    ${pied()}`;
 }
 function feuilleCec(n, total) {
   const C = projet.cec, ligneMesure = d => { const e = etatMesure(d, C.mesures[d.k]);
     return `<tr><td>${esc(d.label)}</td><td class="c">${esc(limiteTexte(d))}</td><td class="c">${C.mesures[d.k] === '' || C.mesures[d.k] == null ? '' : esc(C.mesures[d.k]) + ' ' + esc(d.unite)}</td><td class="c f-x">${e.etat === 'ok' ? '✓' : e.etat === 'ko' ? '<span style="color:#b00">✗</span>' : ''}</td></tr>`; };
   const ligneCoche = ([k, t]) => `<tr><td colspan="3">${esc(t)}</td><td class="c f-x">${C.coches[k] ? '✓' : '☐'}</td></tr>`;
   const b = bilanBudget(), v = bilanConformite(CEC.mesures, CEC.vehicule);
-  return `${entete('Course en Cours ' + CEC.saison, `Thème « ${CEC.theme} » — équipe ${C.equipe || '…'}`, n, total)}
+  return `${entete('Course en Cours ' + CEC.saison, `Contrôle technique — équipe ${projet.fiche.equipe || '…'}`, n, total)}
     <table class="f-tab"><thead><tr><th>Contrôle technique du véhicule</th><th style="width:34mm">Exigence</th><th style="width:26mm">Mesuré</th><th style="width:16mm">OK</th></tr></thead><tbody>
       ${CEC.mesures.map(ligneMesure).join('')}${CEC.vehicule.map(ligneCoche).join('')}
       <tr><th colspan="3">Véhicule conforme (tous les critères)</th><td class="c f-x">${v.conforme ? '✓ Oui' : 'Non'}</td></tr></tbody></table>
@@ -2295,13 +2401,11 @@ function feuilleCec2(n, total) {
   const ligneMesure = d => { const e = etatMesure(d, C.mesures[d.k]);
     return `<tr><td>${esc(d.label)}</td><td class="c">${esc(limiteTexte(d))}</td><td class="c">${C.mesures[d.k] === '' || C.mesures[d.k] == null ? '' : esc(C.mesures[d.k]) + ' ' + esc(d.unite)}</td><td class="c f-x">${e.etat === 'ok' ? '✓' : e.etat === 'ko' ? '<span style="color:#b00">✗</span>' : ''}</td></tr>`; };
   const ligneCoche = ([k, t]) => `<tr><td colspan="3">${esc(t)}</td><td class="c f-x">${C.coches[k] ? '✓' : '☐'}</td></tr>`;
-  return `${entete('Course en Cours ' + CEC.saison, `Stand, équipe, budget et livrables — équipe ${C.equipe || '…'}`, n, total)}
+  return `${entete('Course en Cours ' + CEC.saison, `Stand, budget et livrables — équipe ${projet.fiche.equipe || '…'}`, n, total)}
     <div style="font-size:8.6pt;line-height:1.25">
     <table class="f-tab"><thead><tr><th>Stand</th><th style="width:34mm">Exigence</th><th style="width:26mm">Mesuré</th><th style="width:16mm">OK</th></tr></thead><tbody>
       ${CEC.stand.map(ligneMesure).join('')}${CEC.standCoches.map(ligneCoche).join('')}
       <tr><th colspan="3">Stand conforme</th><td class="c f-x">${st.conforme ? '✓ Oui' : 'Non'}</td></tr></tbody></table>
-    <table class="f-tab"><thead><tr><th style="width:62mm">Rôle</th><th>Élève(s)</th></tr></thead><tbody>
-      ${CEC.roles.map(([k, t]) => `<tr><td>${esc(t)}</td><td>${(C.roles[k] || []).map(u => esc(nomResponsable(u))).join(', ')}</td></tr>`).join('')}</tbody></table>
     <table class="f-tab"><tr><th>Budget</th><td>Recettes : ${euros(b.recettes)} · Dépenses : ${euros(b.depenses)} (max ${euros(CEC.budgetMax)}) · Solde : ${b.solde > 0 ? '+' : ''}${euros(b.solde)}</td></tr></table>
     <table class="f-tab"><thead><tr><th colspan="3">Livrables et obligations</th><th style="width:16mm">Fait</th></tr></thead><tbody>
       ${CEC.livrables.map(ligneCoche).join('')}</tbody></table></div>
@@ -2438,8 +2542,7 @@ function feuillePlanning(n, total) {
 function htmlFeuilles(mode) {
   let pages;
   if (mode === 'planning') pages = [(t, n) => feuillePlanning(n, t)];
-  else if (mode === 'cec') pages = feuillesCec();
-  else pages = { seconde: () => feuillesSeconde(), premiere: () => feuillesPremiere(projet.options.planning), terminale: () => feuillesTerminale() }[projet.niveau]();
+  else pages = { cec: () => feuillesCecProjet(projet.options.planning), seconde: () => feuillesSeconde(), premiere: () => feuillesPremiere(projet.options.planning), terminale: () => feuillesTerminale() }[projet.niveau]();
   return pages.map((p, i) => `<section class="feuille">${p(pages.length, i + 1)}</section>`).join('');
 }
 
@@ -2464,7 +2567,8 @@ function ongletExport(c) {
   c.innerHTML = `<div class="carte"><h2>Export PDF de la fiche officielle</h2>
       <p class="aide">Cliquez sur « Imprimer / Enregistrer en PDF », puis choisissez <b>« Enregistrer au format PDF »</b> comme imprimante.
       Pour un résultat fidèle : format A4, marges « Aucune » ou « Par défaut », et cochez « Graphiques d'arrière-plan » si l'option existe.</p>
-      ${projet.niveau === 'seconde' ? `<p class="aide">Fiche Seconde : 2 pages (le projet, la bête à cornes, le règlement et l'équipe ; le contexte et le planning de l'année).</p>` : ter ? `<p class="aide">Modèle Terminale : 3 pages (identification et cas d'utilisation ; contexte et exigences ; équipe, production, STEM et tâches).</p>` : `
+      ${projet.niveau === 'cec' ? `<p class="aide">Fiche Course en Cours : 3 pages (fiche équipe et calendrier ; contrôle technique du véhicule ; stand, budget et livrables). À apporter au contrôle technique.</p>
+         <p><label><input type="checkbox" id="o-plan" ${projet.options.planning ? 'checked' : ''}> Ajouter le planning (Gantt, obligatoire dans le portfolio)</label></p>` : projet.niveau === 'seconde' ? `<p class="aide">Fiche Seconde : 2 pages (le projet, la bête à cornes, le règlement et l'équipe ; le contexte et le planning de l'année).</p>` : ter ? `<p class="aide">Modèle Terminale : 3 pages (identification et cas d'utilisation ; contexte et exigences ; équipe, production, STEM et tâches).</p>` : `
       <p><label><input type="checkbox" id="o-diag" ${projet.options.diagrammes ? 'checked' : ''}> Ajouter les diagrammes SysML (2 pages)</label><br>
          <label><input type="checkbox" id="o-plan" ${projet.options.planning ? 'checked' : ''}> Ajouter le planning en annexe</label></p>`}
       ${longs.length ? `<div class="alerte warn">Certains textes dépassent la longueur conseillée et risquent d'être coupés sur la fiche : ${longs.map(esc).join(', ')}.</div>` : ''}
@@ -2474,8 +2578,8 @@ function ongletExport(c) {
     <div class="carte"><h2>Aperçu</h2><div class="apercu" id="apercu"></div></div>`;
   const majApercu = () => { $('#apercu').innerHTML = htmlFeuilles('fiche'); };
   majApercu();
-  if (projet.niveau === 'premiere') {
-    $('#o-diag').onchange = e => { projet.options.diagrammes = e.target.checked; sauver(); majApercu(); };
+  if (projet.niveau === 'premiere') $('#o-diag').onchange = e => { projet.options.diagrammes = e.target.checked; sauver(); majApercu(); };
+  if ($('#o-plan')) {
     $('#o-plan').onchange = e => { projet.options.planning = e.target.checked; sauver(); majApercu(); };
   }
   $('#btn-imp').onclick = () => imprimer('fiche');

@@ -26,13 +26,19 @@ Parcours simplifié : fiche courte (nom du projet, nom de l'équipe, classe, bes
 - **Tâches** : une tâche peut être faite par plusieurs élèves (bouton « Tout le groupe ») ; elle compte pour chacun. Le contrôle compare les heures de chaque élève au total des séances.
 - Règlement, logiciels et calendrier se modifient en tête du script (`const SECONDE`).
 
-### Onglet « Course en Cours » (règlement officiel 2026-2027)
+### Course en Cours (règlement officiel 2026-2027)
 
-Construit d'après le règlement officiel de la saison 2026-2027 (thème « Contes et légendes »).
+4e carte de la page d'accueil, à côté de la Seconde, de la Première et de la Terminale. Construit d'après le règlement officiel de la saison 2026-2027 (thème « Contes et légendes »). Onglets :
 
-- **Première et Terminale** : nom d'équipe et lien avec le thème ; 4 à 6 membres et **rôles officiels** (annexe 1) ; **contrôle technique du véhicule** (350 × 125 × 150 mm max, garde au sol ≥ 1 mm, roues motrices 56 à 62 mm, ≥ 3 roues, ≥ 2 attaches, montage/démontage ≤ 2 min, + les 15 points de l'annexe 2) avec ✓/⚠ automatiques ; **stand** (2 m × 1,50 m × 2 m) ; **budget** (2 000 € max, recettes / dépenses / solde) ; **livrables** (portfolio A4 avec Gantt et budget, 2 véhicules, soutenance de 8 min dont 1 min en anglais…) ; **les 6 épreuves et 19 critères** avec auto-évaluation Bas / Moyen / Haut ; **calendrier** avec compte à rebours (date limite des autorisations de prise de vue calculée). Fiche imprimable de 2 pages.
-- **Seconde** : présentation du vrai concours et comparaison avec la mini version.
-- Les données du règlement sont regroupées dans `const CEC` (à mettre à jour chaque saison). Les tableaux de coefficients des prix (images dans le PDF officiel) ne sont pas repris.
+- **Fiche équipe** : nom d'équipe, véhicule, catégorie, établissement, académie, Centre de Ressources, lien avec le thème.
+- **Équipe et rôles** : 4 à 6 membres, les 6 rôles officiels (annexe 1), règles de l'équipe.
+- **Véhicule** : contrôle technique (350 × 125 × 150 mm max, garde au sol ≥ 1 mm, roues motrices 56 à 62 mm, ≥ 3 roues, ≥ 2 attaches, montage/démontage ≤ 2 min, + les 15 points de l'annexe 2) avec ✓/⚠ automatiques.
+- **Stand** (2 m × 1,50 m × 2 m), **Budget** (2 000 € max, recettes / dépenses / solde), **Planning** (Gantt, heures par élève réglables).
+- **Livrables et calendrier** (portfolio A4 avec Gantt et budget, 2 véhicules, soutenance 8 min dont 1 min en anglais… ; finales avec compte à rebours).
+- **Épreuves** : les 6 épreuves et 19 critères, avec auto-évaluation Bas / Moyen / Haut.
+- **Export PDF** : 3 pages (fiche équipe, contrôle technique, stand / budget / livrables) + planning en option.
+
+Les données du règlement sont regroupées dans `const CEC` (à mettre à jour chaque saison). Les tableaux de coefficients des prix (images dans le PDF officiel) ne sont pas repris.
 
 ## 2. Mode serveur (réseau du lycée)
 
