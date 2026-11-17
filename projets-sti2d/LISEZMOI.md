@@ -20,11 +20,19 @@ Aucune donnée n'est envoyée sur Internet.
 
 ### Seconde SI-CIT (mini « Course en cours », toute l'année)
 
-Parcours simplifié : fiche courte (nom du projet, nom de l'équipe, classe, besoin, ce que l'on va fabriquer), **règlement vérifié automatiquement** (voiture 100 mm maximum, stand 150 × 150 × 150 mm), logiciels et machines (SolidWorks, SketchUp, Tinkercad, imprimante 3D, découpe laser…), « Qui fait quoi ? » (groupes de 4 à 6), **bête à cornes**, diagramme de contexte, planning des vendredis. Fiche PDF sur 2 pages.
+Parcours simplifié : fiche courte (nom du projet, nom de l'équipe, classe, besoin, ce que l'on va fabriquer), **règlement vérifié automatiquement** (voiture 100 mm maximum dans chaque direction, socle de stand 150 × 150 mm, hauteur libre), logiciels et machines (SolidWorks, SketchUp, Tinkercad, imprimante 3D, découpe laser…), « Qui fait quoi ? » (groupes de 4 à 6), **bête à cornes**, diagramme de contexte, planning des vendredis. Fiche PDF sur 2 pages.
 
 - **Séances** : chaque vendredi du 20/11/2026 à mi-juin 2027, 1 h puis 2 h en alternance, hors vacances de la zone B et pont de l'Ascension (23 séances, 35 h). Le professeur peut retirer ou modifier une séance (Planning → « Calendrier des séances »).
 - **Tâches** : une tâche peut être faite par plusieurs élèves (bouton « Tout le groupe ») ; elle compte pour chacun. Le contrôle compare les heures de chaque élève au total des séances.
 - Règlement, logiciels et calendrier se modifient en tête du script (`const SECONDE`).
+
+### Onglet « Course en Cours » (règlement officiel 2026-2027)
+
+Construit d'après le règlement officiel de la saison 2026-2027 (thème « Contes et légendes »).
+
+- **Première et Terminale** : nom d'équipe et lien avec le thème ; 4 à 6 membres et **rôles officiels** (annexe 1) ; **contrôle technique du véhicule** (350 × 125 × 150 mm max, garde au sol ≥ 1 mm, roues motrices 56 à 62 mm, ≥ 3 roues, ≥ 2 attaches, montage/démontage ≤ 2 min, + les 15 points de l'annexe 2) avec ✓/⚠ automatiques ; **stand** (2 m × 1,50 m × 2 m) ; **budget** (2 000 € max, recettes / dépenses / solde) ; **livrables** (portfolio A4 avec Gantt et budget, 2 véhicules, soutenance de 8 min dont 1 min en anglais…) ; **les 6 épreuves et 19 critères** avec auto-évaluation Bas / Moyen / Haut ; **calendrier** avec compte à rebours (date limite des autorisations de prise de vue calculée). Fiche imprimable de 2 pages.
+- **Seconde** : présentation du vrai concours et comparaison avec la mini version.
+- Les données du règlement sont regroupées dans `const CEC` (à mettre à jour chaque saison). Les tableaux de coefficients des prix (images dans le PDF officiel) ne sont pas repris.
 
 ## 2. Mode serveur (réseau du lycée)
 
