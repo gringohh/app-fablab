@@ -30,9 +30,9 @@ Tout se fait avec **Google Apps Script**, directement dans ton compte Gmail pers
 
 1. Aller sur <https://script.google.com/>, connecté avec le **Gmail perso** (celui du Drive).
 2. **Nouveau projet**. En haut à gauche, renommer « Projet sans titre » en **Relais Drive**.
-3. Dans le fichier **Code.gs** : tout effacer, puis coller le contenu de [`apps-script/Code.gs`](apps-script/Code.gs).
-4. À gauche, **+** à côté de « Fichiers » → **HTML** → nommer le fichier **Page** (sans « .html »). Tout effacer, puis coller le contenu de [`apps-script/Page.html`](apps-script/Page.html).
-5. Enregistrer (icône 💾).
+3. Dans le fichier **Code.gs** : tout effacer, puis coller **tout** le contenu de [`apps-script/Relais-Drive-complet.gs`](apps-script/Relais-Drive-complet.gs) (un seul fichier, la page est incluse dedans).
+   *Pour copier depuis GitHub : ouvrir le fichier → bouton « Copy raw file » (icône 📋 en haut à droite du code).*
+4. Enregistrer (icône 💾).
 
 ### Étape 2 : publier le script
 
@@ -95,7 +95,8 @@ Le dossier `relais-drive/` contient aussi une version qui s'installe comme une v
 
 | Fichier | Rôle |
 |---|---|
-| `apps-script/Code.gs`, `apps-script/Page.html` | méthode simple, à coller dans script.google.com |
+| `apps-script/Relais-Drive-complet.gs` | méthode simple : le seul fichier à coller dans script.google.com |
+| `apps-script/Code.gs`, `apps-script/Page.html` | sources de la méthode simple (le fichier complet en est généré) |
 | `index.html` | application installable (méthode avancée) |
 | `manifest.webmanifest` | installation sur l'écran d'accueil et menu « Partager » |
 | `sw.js` | fonctionnement hors ligne et réception des fichiers partagés |
