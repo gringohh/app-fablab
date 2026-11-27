@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+:root {
+  --fond: #f3f5f9; --carte: #ffffff; --texte: #1b2433; --doux: #5b6678; --bord: #dde2ea;
+  --bleu: #1d5fc4; --bleu-clair: #e7effb; --vert: #1e8e4f; --vert-clair: #e5f5ec;
+  --rouge: #c0392b; --rouge-clair: #fbeae8; --orange: #b86e00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #11161f; --carte: #1a212d; --texte: #e6eaf1; --doux: #9aa5b8; --bord: #2c3646;
+    --bleu: #5b9bff; --bleu-clair: #1d2a40; --vert: #4cc283; --vert-clair: #16301f;
+    --rouge: #ff7a6b; --rouge-clair: #3a1d1a; --orange: #f0a64a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte);
+  font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--bleu); color: #fff; padding: 14px 16px; }
+header h1 { font-size: 21px; margin: 0; }
+main { max-width: 760px; margin: 0 auto; padding: 16px; padding-bottom: 60px; }
+.carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+h2 { font-size: 18px; margin: 0 0 10px; }
+p { margin: 6px 0; }
+.doux { color: var(--doux); font-size: 15px; }
+button, .bouton { font: inherit; border-radius: 10px; border: 1px solid var(--bord); background: var(--carte);
+  color: var(--texte); padding: 12px 16px; cursor: pointer; min-height: 48px; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+button.principal { background: var(--bleu); border-color: var(--bleu); color: #fff; font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+button.petit { min-height: 38px; padding: 6px 12px; font-size: 15px; }
+.rangee { display: flex; gap: 10px; flex-wrap: wrap; }
+.rangee > * { flex: 1 1 200px; }
+.depot { border: 2px dashed var(--bleu); background: var(--bleu-clair); border-radius: 14px; padding: 22px 16px; text-align: center; }
+.depot strong { display: block; font-size: 19px; margin-bottom: 4px; }
+input[type=text], textarea { font: inherit; width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--bord);
+  background: var(--fond); color: var(--texte); min-height: 46px; }
+.lot { border: 1px solid var(--bord); border-radius: 12px; padding: 12px; margin-top: 10px; }
+.lot .entete { display: flex; gap: 10px; align-items: center; }
+.lot .entete input { flex: 1; }
+.lot details { margin-top: 8px; }
+.lot summary { cursor: pointer; color: var(--doux); font-size: 15px; }
+.lot ul { margin: 6px 0 0; padding-left: 18px; max-height: 240px; overflow: auto; font-size: 14px; word-break: break-all; }
+.etat { font-size: 14px; margin-top: 8px; }
+.erreur { color: var(--rouge); } .attention { color: var(--orange); }
+.barre { height: 12px; background: var(--bord); border-radius: 999px; overflow: hidden; margin: 10px 0 6px; }
+.barre > div { height: 100%; width: 0; background: var(--bleu); transition: width .2s; }
+.resultat { background: var(--vert-clair); border-radius: 12px; padding: 12px; margin-top: 10px; }
+.resultat.echec { background: var(--rouge-clair); }
+.resultat .rangee { margin-top: 8px; }
+.resultat textarea { margin-top: 8px; font-size: 14px; min-height: 0; }
+.historique li { margin-bottom: 6px; }
+.historique a { color: var(--bleu); }
+.cache { display: none !important; }
+</style>
+</head>
+<body>
+<header><h1>☁️ Relais Drive</h1></header>
+<main>
+  <section class="carte">
+    <div class="depot">
+      <strong>Choisis un ou plusieurs fichiers .zip</strong>
+      <span class="doux">Ils sont décompressés ici, sans rien mélanger dans Téléchargements.</span>
+      <div class="rangee" style="margin-top:14px">
+        <button class="principal" id="btnChoisirZip" type="button">📦 Choisir des .zip</button>
+        <button id="btnChoisirFichiers" type="button">📄 Autres fichiers</button>
+      </div>
+    </div>
+    <input type="file" id="entreeZip" accept=".zip,application/zip,application/x-zip-compressed" multiple class="cache">
+    <input type="file" id="entreeFichiers" multiple class="cache">
+  </section>
+
+  <section class="carte cache" id="sectionLots">
+    <h2>À envoyer</h2>
+    <p class="doux">Chaque lot devient un dossier dans « Relais tablette » sur ton Drive. Tu peux renommer le dossier.</p>
+    <div id="listeLots"></div>
+    <div class="barre cache" id="barre"><div></div></div>
+    <p class="doux cache" id="texteProgres"></p>
+    <div class="rangee" style="margin-top:14px">
+      <button class="principal" id="btnEnvoyer" type="button">☁️ Envoyer sur le Drive</button>
+      <button id="btnVider" type="button">Tout retirer</button>
+    </div>
+  </section>
+
+  <section class="carte cache" id="sectionResultats">
+    <h2>Envoyé</h2>
+    <div id="listeResultats"></div>
+  </section>
+
+  <section class="carte cache" id="sectionHistorique">
+    <h2>Derniers envois</h2>
+    <ul class="historique" id="listeHistorique"></ul>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+'use strict';
+const ENVOIS_SIMULTANES = 3;
+const TAILLE_MAX = 40 * 1024 * 1024;
+const IGNORES = /(^|\/)(__MACOSX\/|\.DS_Store$|Thumbs\.db$|desktop\.ini$)/i;
+
+const $ = id => document.getElementById(id);
+const pause = ms => new Promise(r => setTimeout(r, ms));
+function echapper(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function taille(o) {
+  if (!o) return '—';
+  const u = ['o', 'Ko', 'Mo', 'Go']; let i = 0;
+  while (o >= 1024 && i < u.length - 1) { o /= 1024; i++; }
+  return (i ? o.toFixed(o < 10 ? 1 : 0) : o) + ' ' + u[i];
+}
+const stock = {
+  lire(cle, defaut) { try { const v = localStorage.getItem('relais.' + cle); return v === null ? defaut : JSON.parse(v); } catch (e) { return defaut; } },
+  ecrire(cle, val) { try { localStorage.setItem('relais.' + cle, JSON.stringify(val)); } catch (e) {} }
+};
+
+// Appel d'une fonction de Code.gs, sous forme de promesse
+function serveur(fonction, ...args) {
+  return new Promise((ok, ko) => google.script.run.withSuccessHandler(ok).withFailureHandler(ko)[fonction](...args));
+}
+async function serveurAvecEssais(fonction, ...args) {
+  for (let n = 0; ; n++) {
+    try { return await serveur(fonction, ...args); }
+    catch (e) { if (n >= 3 || /trop gros/i.test(e.message)) throw e; await pause(1500 * 2 ** n); }
+  }
+}
+function enBase64(blob) {
+  return new Promise((ok, ko) => {
+    const r = new FileReader();
+    r.onload = () => ok(r.result.slice(r.result.indexOf(',') + 1));
+    r.onerror = () => ko(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/* ---------- Lots : un lot = un dossier sur le Drive ---------- */
+let lots = [], envoiEnCours = false, compteur = 0;
+function nomDuJour() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  return `Envoi du ${z(d.getDate())}-${z(d.getMonth() + 1)}-${d.getFullYear()} ${z(d.getHours())}h${z(d.getMinutes())}`;
+}
+
+async function ajouterFichiers(liste) {
+  const zips = [], autres = [];
+  for (const f of liste) (/\.zip$/i.test(f.name) || /zip/.test(f.type) ? zips : autres).push(f);
+  for (const f of zips) {
+    const lot = { id: ++compteur, nom: f.name.replace(/\.zip$/i, '') || f.name, source: f.name, entrees: [], etat: 'lecture' };
+    lots.push(lot); afficherLots();
+    try {
+      if (!window.JSZip) throw new Error('module de décompression non chargé (réseau ?)');
+      const zip = await JSZip.loadAsync(f);
+      zip.forEach((chemin, e) => {
+        if (e.dir || IGNORES.test(chemin)) return;
+        lot.entrees.push({ chemin, taille: (e._data && e._data.uncompressedSize) || 0, blob: () => e.async('blob') });
+      });
+      // Un seul dossier dans le zip : on ne le répète pas (« Projet/… » et non « Projet/Projet/… »)
+      const premiers = new Set(lot.entrees.map(x => x.chemin.split('/')[0]));
+      if (premiers.size === 1 && lot.entrees.every(x => x.chemin.includes('/'))) {
+        const [unique] = premiers;
+        if (unique) { lot.nom = unique; lot.entrees.forEach(x => x.chemin = x.chemin.slice(unique.length + 1)); }
+      }
+      lot.etat = lot.entrees.length ? 'pret' : 'vide';
+    } catch (e) { lot.etat = 'erreur'; lot.message = 'Lecture du zip impossible : ' + e.message; }
+    afficherLots();
+  }
+  if (autres.length) {
+    lots.push({ id: ++compteur, nom: nomDuJour(), source: autres.length + ' fichier(s)', etat: 'pret',
+      entrees: autres.map(f => ({ chemin: f.name, taille: f.size, blob: async () => f })) });
+    afficherLots();
+  }
+}
+
+function afficherLots() {
+  $('sectionLots').classList.toggle('cache', !lots.length);
+  $('listeLots').innerHTML = lots.map(l => {
+    const total = l.entrees.reduce((s, e) => s + e.taille, 0);
+    const gros = l.entrees.filter(e => e.taille > TAILLE_MAX).length;
+    let etat;
+    if (l.etat === 'lecture') etat = '<span class="doux">Lecture du zip…</span>';
+    else if (l.etat === 'vide') etat = '<span class="attention">Ce zip ne contient aucun fichier.</span>';
+    else if (l.etat === 'erreur') etat = `<span class="erreur">${echapper(l.message)}</span>`;
+    else if (l.etat === 'envoi') etat = `<span class="doux">Envoi : ${l.faits || 0} / ${(l.echecs || l.entrees).length}</span>`;
+    else etat = `<span class="doux">${l.entrees.length} fichier(s) · ${taille(total)}</span>`;
+    if (l.echecs && l.etat !== 'envoi') etat += ` · <span class="erreur">${l.echecs.length} à renvoyer</span>`;
+    if (gros) etat += ` · <span class="attention">${gros} fichier(s) de plus de 40 Mo ne passeront pas</span>`;
+    const apercu = l.entrees.slice(0, 300).map(e => `<li>${echapper(e.chemin)} <span class="doux">(${taille(e.taille)})</span></li>`).join('')
+      + (l.entrees.length > 300 ? `<li class="doux">… et ${l.entrees.length - 300} autres</li>` : '');
+    return `<div class="lot" data-id="${l.id}">
+      <div class="entete">
+        <input type="text" value="${echapper(l.nom)}" aria-label="Nom du dossier" data-champ="nom" ${envoiEnCours || l.dossiers ? 'disabled' : ''}>
+        <button class="petit" data-retirer="${l.id}" type="button" ${envoiEnCours ? 'disabled' : ''} aria-label="Retirer">✕</button>
+      </div>
+      <div class="etat">📦 ${echapper(l.source)} — ${etat}</div>
+      ${l.entrees.length ? `<details><summary>Voir les fichiers</summary><ul>${apercu}</ul></details>` : ''}
+    </div>`;
+  }).join('');
+  $('btnEnvoyer').disabled = envoiEnCours || !lots.some(l => l.etat === 'pret');
+  $('btnVider').disabled = envoiEnCours;
+}
+$('listeLots').addEventListener('input', e => {
+  if (e.target.dataset.champ !== 'nom') return;
+  const lot = lots.find(l => l.id == e.target.closest('.lot').dataset.id);
+  if (lot) lot.nom = e.target.value;
+});
+$('listeLots').addEventListener('click', e => {
+  const id = e.target.dataset && e.target.dataset.retirer;
+  if (id) { lots = lots.filter(l => l.id != id); afficherLots(); }
+});
+
+/* ---------- Envoi ---------- */
+async function envoyerTout() {
+  if (envoiEnCours) return;
+  const aEnvoyer = lots.filter(l => l.etat === 'pret');
+  if (!aEnvoyer.length) return;
+  envoiEnCours = true; afficherLots();
+  const total = aEnvoyer.reduce((s, l) => s + (l.echecs || l.entrees).length, 0);
+  let faits = 0;
+  $('barre').classList.remove('cache'); $('texteProgres').classList.remove('cache');
+  const progres = t => { $('barre').firstElementChild.style.width = (total ? 100 * faits / total : 0) + '%'; $('texteProgres').textContent = t; };
+
+  try {
+    for (const lot of aEnvoyer) {
+      const liste = lot.echecs || lot.entrees;
+      lot.etat = 'envoi'; lot.faits = 0; afficherLots();
+      if (!lot.dossiers) {
+        progres(`Création du dossier « ${lot.nom} »…`);
+        const chemins = [...new Set(lot.entrees.flatMap(e => {
+          const p = e.chemin.split('/').slice(0, -1);
+          return p.map((_, i) => p.slice(0, i + 1).join('/'));
+        }))];
+        const r = await serveurAvecEssais('preparerLot', lot.nom, chemins);
+        Object.assign(lot, { dossiers: r.dossiers, lien: r.url, nomFinal: r.nom, racine: r.racine });
+      }
+      const file = liste.slice(), echecs = [];
+      const travailleur = async () => {
+        while (file.length) {
+          const e = file.shift();
+          const morceaux = e.chemin.split('/'); const nom = morceaux.pop();
+          progres(`${lot.nomFinal} : ${nom}`);
+          try {
+            if (e.taille > TAILLE_MAX) throw new Error('Fichier trop gros (40 Mo maximum)');
+            const blob = await e.blob();
+            await serveurAvecEssais('envoyerFichier', lot.dossiers[morceaux.join('/')], nom, blob.type || '', await enBase64(blob));
+          } catch (err) { e.erreur = err.message || String(err); echecs.push(e); }
+          lot.faits++; faits++;
+          const el = document.querySelector(`.lot[data-id="${lot.id}"] .etat`);
+          if (el) el.innerHTML = `📦 ${echapper(lot.source)} — <span class="doux">Envoi : ${lot.faits} / ${liste.length}</span>`;
+        }
+      };
+      await Promise.all(Array.from({ length: ENVOIS_SIMULTANES }, travailleur));
+      if (echecs.length) { lot.echecs = echecs; lot.etat = 'pret'; }
+      else { lot.etat = 'fini'; delete lot.echecs; ajouterHistorique(lot); }
+      afficherResultat(lot, echecs);
+    }
+    progres('Terminé.');
+  } catch (e) {
+    progres('Arrêt : ' + (e.message || e));
+    aEnvoyer.forEach(l => { if (l.etat === 'envoi') l.etat = 'pret'; });
+  } finally {
+    envoiEnCours = false;
+    lots = lots.filter(l => l.etat !== 'fini');
+    afficherLots();
+  }
+}
+
+function phrase(racine, nom, lien) { return `Regarde le dossier « ${racine}/${nom} » dans mon Google Drive : ${lien}`; }
+function afficherResultat(lot, echecs) {
+  $('sectionResultats').classList.remove('cache');
+  const div = document.createElement('div');
+  div.className = 'resultat' + (echecs.length ? ' echec' : '');
+  div.innerHTML = echecs.length
+    ? `<strong>⚠️ ${echapper(lot.nomFinal)}</strong> — ${echecs.length} fichier(s) non envoyé(s). Appuie à nouveau sur « Envoyer » pour réessayer uniquement ceux-là.
+       <ul class="doux">${echecs.slice(0, 10).map(e => `<li>${echapper(e.chemin)} : ${echapper(e.erreur)}</li>`).join('')}</ul>`
+    : `<strong>✅ ${echapper(lot.nomFinal)}</strong> — ${lot.entrees.length} fichier(s) dans « ${echapper(lot.racine)} ».`;
+  div.appendChild(boutons(phrase(lot.racine, lot.nomFinal, lot.lien), lot.lien));
+  $('listeResultats').prepend(div);
+}
+function boutons(texte, lien) {
+  const bloc = document.createElement('div');
+  bloc.innerHTML = `<div class="rangee"><a class="bouton" href="${echapper(lien)}" target="_blank" rel="noopener">Ouvrir dans Drive</a>
+    <button type="button" class="principal">📋 Copier la phrase pour Claude</button></div>
+    <textarea readonly rows="2" class="cache"></textarea>`;
+  const zone = bloc.querySelector('textarea'); zone.value = texte;
+  bloc.querySelector('button').onclick = async e => {
+    try { await navigator.clipboard.writeText(texte); e.target.textContent = '✓ Copié ! Colle-le dans Claude'; }
+    catch (err) {
+      // Presse-papiers bloqué : on affiche le texte sélectionné pour un « Copier » manuel
+      zone.classList.remove('cache'); zone.focus(); zone.select();
+      try { document.execCommand('copy'); e.target.textContent = '✓ Copié ! Colle-le dans Claude'; } catch (x) {}
+    }
+  };
+  return bloc;
+}
+
+/* ---------- Historique ---------- */
+function ajouterHistorique(lot) {
+  const h = stock.lire('historique', []);
+  h.unshift({ nom: lot.nomFinal, racine: lot.racine, lien: lot.lien, n: lot.entrees.length, date: Date.now() });
+  stock.ecrire('historique', h.slice(0, 15));
+  afficherHistorique();
+}
+function afficherHistorique() {
+  const h = stock.lire('historique', []);
+  $('sectionHistorique').classList.toggle('cache', !h.length);
+  $('listeHistorique').innerHTML = h.map(x => `<li><a href="${echapper(x.lien)}" target="_blank" rel="noopener">${echapper(x.racine)}/${echapper(x.nom)}</a>
+    <span class="doux">· ${x.n} fichier(s) · ${new Date(x.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</span></li>`).join('');
+}
+
+/* ---------- Interface ---------- */
+$('btnChoisirZip').onclick = () => $('entreeZip').click();
+$('btnChoisirFichiers').onclick = () => $('entreeFichiers').click();
+for (const id of ['entreeZip', 'entreeFichiers']) $(id).onchange = e => { ajouterFichiers([...e.target.files]); e.target.value = ''; };
+$('btnEnvoyer').onclick = envoyerTout;
+$('btnVider').onclick = () => { lots = []; afficherLots(); };
+window.addEventListener('beforeunload', e => { if (envoiEnCours) { e.preventDefault(); e.returnValue = ''; } });
+afficherHistorique(); afficherLots();
+</script>
+</body>
+</html>
