@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Relais Drive</title>
+<meta name="description" content="Décompresse un .zip sur la tablette et l'envoie, dossiers compris, dans Google Drive.">
+<meta name="theme-color" content="#1d5fc4">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icones/icone-192.png">
+<style>
+:root {
+  --fond: #f3f5f9; --carte: #ffffff; --texte: #1b2433; --doux: #5b6678; --bord: #dde2ea;
+  --bleu: #1d5fc4; --bleu-clair: #e7effb; --vert: #1e8e4f; --vert-clair: #e5f5ec;
+  --rouge: #c0392b; --rouge-clair: #fbeae8; --orange: #b86e00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #11161f; --carte: #1a212d; --texte: #e6eaf1; --doux: #9aa5b8; --bord: #2c3646;
+    --bleu: #5b9bff; --bleu-clair: #1d2a40; --vert: #4cc283; --vert-clair: #16301f;
+    --rouge: #ff7a6b; --rouge-clair: #3a1d1a; --orange: #f0a64a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte);
+  font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--bleu); color: #fff; padding: 14px 16px;
+  padding-top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 12px; }
+header h1 { font-size: 21px; margin: 0; flex: 1; }
+header img { width: 34px; height: 34px; border-radius: 8px; }
+.puce { font-size: 14px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.18);
+  border: 0; color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+main { max-width: 760px; margin: 0 auto; padding: 16px; padding-bottom: 60px; }
+.carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+h2 { font-size: 18px; margin: 0 0 10px; }
+p { margin: 6px 0; }
+.doux { color: var(--doux); font-size: 15px; }
+button, .bouton { font: inherit; border-radius: 10px; border: 1px solid var(--bord); background: var(--carte);
+  color: var(--texte); padding: 12px 16px; cursor: pointer; min-height: 48px; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+button.principal { background: var(--bleu); border-color: var(--bleu); color: #fff; font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+button.petit { min-height: 38px; padding: 6px 12px; font-size: 15px; }
+.rangee { display: flex; gap: 10px; flex-wrap: wrap; }
+.rangee > * { flex: 1 1 200px; }
+.depot { border: 2px dashed var(--bleu); background: var(--bleu-clair); border-radius: 14px; padding: 22px 16px;
+  text-align: center; }
+.depot.survol { filter: brightness(.95); }
+.depot strong { display: block; font-size: 19px; margin-bottom: 4px; }
+input[type=text] { font: inherit; width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--bord);
+  background: var(--fond); color: var(--texte); min-height: 46px; }
+label { display: block; font-weight: 600; margin: 10px 0 4px; font-size: 15px; }
+.lot { border: 1px solid var(--bord); border-radius: 12px; padding: 12px; margin-top: 10px; }
+.lot .entete { display: flex; gap: 10px; align-items: center; }
+.lot .entete input { flex: 1; }
+.lot details { margin-top: 8px; }
+.lot summary { cursor: pointer; color: var(--doux); font-size: 15px; }
+.lot ul { margin: 6px 0 0; padding-left: 18px; max-height: 240px; overflow: auto; font-size: 14px; word-break: break-all; }
+.etat { font-size: 14px; margin-top: 8px; }
+.ok { color: var(--vert); } .erreur { color: var(--rouge); } .attention { color: var(--orange); }
+.barre { height: 12px; background: var(--bord); border-radius: 999px; overflow: hidden; margin: 10px 0 6px; }
+.barre > div { height: 100%; width: 0; background: var(--bleu); transition: width .2s; }
+.resultat { background: var(--vert-clair); border-radius: 12px; padding: 12px; margin-top: 10px; }
+.resultat.echec { background: var(--rouge-clair); }
+.resultat .rangee { margin-top: 8px; }
+.historique li { margin-bottom: 6px; }
+.historique a { color: var(--bleu); }
+ol.etapes { padding-left: 20px; margin: 6px 0; }
+ol.etapes li { margin-bottom: 6px; }
+code { background: var(--fond); padding: 1px 5px; border-radius: 5px; font-size: 14px; word-break: break-all; }
+.cache { display: none !important; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--texte); color: var(--fond);
+  padding: 10px 18px; border-radius: 999px; font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <img src="icones/icone-192.png" alt="">
+  <h1>Relais Drive</h1>
+  <button class="puce" id="puceCompte" type="button">Non connecté</button>
+</header>
+
+<main>
+  <!-- Première configuration -->
+  <section class="carte cache" id="configuration">
+    <h2>Première configuration</h2>
+    <p>L'application a besoin d'un <strong>identifiant client Google</strong> (gratuit, à créer une seule fois avec ton compte Gmail).</p>
+    <ol class="etapes">
+      <li>Ouvre <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">console.cloud.google.com</a> avec ton Gmail et crée un projet « Relais Drive ».</li>
+      <li>Active l'<strong>API Google Drive</strong>.</li>
+      <li>Configure l'écran de consentement (type « Externe »), ajoute ton Gmail comme utilisateur test.</li>
+      <li>Crée un identifiant <strong>« ID client OAuth »</strong> de type <em>Application Web</em>, avec comme origine JavaScript autorisée :<br><code id="origineActuelle"></code></li>
+      <li>Colle ci-dessous l'ID client (il finit par <code>.apps.googleusercontent.com</code>).</li>
+    </ol>
+    <p class="doux">Le guide détaillé est dans le fichier LISEZMOI.md du dossier relais-drive.</p>
+    <label for="champIdClient">ID client OAuth</label>
+    <input type="text" id="champIdClient" placeholder="123456789-xxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+    <div class="rangee" style="margin-top:12px"><button class="principal" id="btnEnregistrerId" type="button">Enregistrer</button></div>
+  </section>
+
+  <!-- Choix des fichiers -->
+  <section class="carte" id="choix">
+    <div class="depot" id="zoneDepot">
+      <strong>Choisis un ou plusieurs fichiers .zip</strong>
+      <span class="doux">Ils sont décompressés ici, sans rien mélanger dans Téléchargements.</span>
+      <div class="rangee" style="margin-top:14px">
+        <button class="principal" id="btnChoisirZip" type="button">📦 Choisir des .zip</button>
+        <button id="btnChoisirFichiers" type="button">📄 Autres fichiers</button>
+      </div>
+    </div>
+    <input type="file" id="entreeZip" accept=".zip,application/zip,application/x-zip-compressed" multiple class="cache">
+    <input type="file" id="entreeFichiers" multiple class="cache">
+    <p class="doux" style="margin-top:10px">Astuce : dans l'app Fichiers, sélectionne un .zip → <em>Partager</em> → <em>Relais Drive</em>.</p>
+  </section>
+
+  <!-- Lots prêts à envoyer -->
+  <section class="carte cache" id="sectionLots">
+    <h2>À envoyer</h2>
+    <p class="doux">Chaque lot devient un dossier dans <strong id="nomRacine"></strong> sur ton Drive. Tu peux renommer le dossier.</p>
+    <div id="listeLots"></div>
+    <div class="barre cache" id="barre"><div></div></div>
+    <p class="doux cache" id="texteProgres"></p>
+    <div class="rangee" style="margin-top:14px">
+      <button class="principal" id="btnEnvoyer" type="button">☁️ Envoyer sur le Drive</button>
+      <button id="btnVider" type="button">Tout retirer</button>
+    </div>
+  </section>
+
+  <!-- Résultats -->
+  <section class="carte cache" id="sectionResultats">
+    <h2>Envoyé</h2>
+    <div id="listeResultats"></div>
+  </section>
+
+  <!-- Historique -->
+  <section class="carte cache" id="sectionHistorique">
+    <h2>Derniers envois</h2>
+    <ul class="historique" id="listeHistorique"></ul>
+  </section>
+
+  <!-- Réglages -->
+  <details class="carte" id="reglages">
+    <summary><strong>Réglages</strong></summary>
+    <label for="champRacine">Dossier principal sur le Drive</label>
+    <input type="text" id="champRacine" placeholder="Relais tablette">
+    <p class="doux">Créé automatiquement à la racine de ton Drive au premier envoi.</p>
+    <label for="champIdClient2">ID client OAuth</label>
+    <input type="text" id="champIdClient2" autocomplete="off" spellcheck="false">
+    <div class="rangee" style="margin-top:12px">
+      <button id="btnEnregistrerReglages" type="button">Enregistrer</button>
+      <button id="btnDeconnexion" type="button">Se déconnecter</button>
+    </div>
+    <p class="doux">L'application ne voit que les fichiers qu'elle a elle-même créés sur ton Drive (autorisation « drive.file »).</p>
+  </details>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+'use strict';
+/* ====================== Réglages et stockage ====================== */
+const PORTEE = 'https://www.googleapis.com/auth/drive.file';
+const API = 'https://www.googleapis.com/drive/v3';
+const API_ENVOI = 'https://www.googleapis.com/upload/drive/v3';
+const TYPE_DOSSIER = 'application/vnd.google-apps.folder';
+const SEUIL_SIMPLE = 5 * 1024 * 1024;   // au-delà : envoi « reprenable »
+const ENVOIS_SIMULTANES = 3;
+const IGNORES = /(^|\/)(__MACOSX\/|\.DS_Store$|Thumbs\.db$|desktop\.ini$)/i;
+
+const stock = {
+  lire(cle, defaut) { try { const v = localStorage.getItem('relais.' + cle); return v === null ? defaut : JSON.parse(v); } catch { return defaut; } },
+  ecrire(cle, val) { try { localStorage.setItem('relais.' + cle, JSON.stringify(val)); } catch {} }
+};
+const reglages = {
+  get idClient() { return stock.lire('idClient', ''); },
+  get racine() { return stock.lire('racine', '') || 'Relais tablette'; }
+};
+
+const $ = id => document.getElementById(id);
+function echapper(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function taille(o) {
+  if (!o) return '—';
+  const u = ['o', 'Ko', 'Mo', 'Go']; let i = 0;
+  while (o >= 1024 && i < u.length - 1) { o /= 1024; i++; }
+  return (i ? o.toFixed(o < 10 ? 1 : 0) : o) + ' ' + u[i];
+}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('visible'); clearTimeout(toast.m); toast.m = setTimeout(() => t.classList.remove('visible'), 2200); }
+const pause = ms => new Promise(r => setTimeout(r, ms));
+
+/* ====================== Connexion Google ====================== */
+let jeton = null, expiration = 0, clientJeton = null, attenteJeton = null;
+try { const s = JSON.parse(sessionStorage.getItem('relais.jeton') || 'null'); if (s && s.exp > Date.now()) { jeton = s.j; expiration = s.exp; } } catch {}
+
+function connecte() { return jeton && Date.now() < expiration - 60000; }
+function majPuce() { $('puceCompte').textContent = connecte() ? '✓ Connecté' : 'Se connecter'; }
+
+function attendreGis() {
+  return new Promise((ok, ko) => {
+    let n = 0;
+    (function test() {
+      if (window.google && google.accounts && google.accounts.oauth2) return ok();
+      if (++n > 100) return ko(new Error('Impossible de charger la connexion Google (réseau ?)'));
+      setTimeout(test, 100);
+    })();
+  });
+}
+async function obtenirJeton() {
+  if (connecte()) return jeton;
+  if (!reglages.idClient) throw new Error('Renseigne d\'abord l\'ID client OAuth.');
+  await attendreGis();
+  if (!clientJeton) {
+    clientJeton = google.accounts.oauth2.initTokenClient({
+      client_id: reglages.idClient, scope: PORTEE,
+      callback: r => {
+        const a = attenteJeton; attenteJeton = null;
+        if (!a) return;
+        if (r.error) return a.ko(new Error('Connexion refusée : ' + r.error));
+        jeton = r.access_token; expiration = Date.now() + (Number(r.expires_in) || 3600) * 1000;
+        try { sessionStorage.setItem('relais.jeton', JSON.stringify({ j: jeton, exp: expiration })); } catch {}
+        majPuce(); a.ok(jeton);
+      },
+      error_callback: e => { const a = attenteJeton; attenteJeton = null; if (a) a.ko(new Error(e && e.type === 'popup_closed' ? 'Fenêtre de connexion fermée.' : 'Connexion impossible (' + (e && e.type || 'inconnue') + ').')); }
+    });
+  }
+  return new Promise((ok, ko) => {
+    attenteJeton = { ok, ko };
+    clientJeton.requestAccessToken({ prompt: stock.lire('dejaConnecte', false) ? '' : 'consent' });
+  }).then(j => { stock.ecrire('dejaConnecte', true); return j; });
+}
+function deconnecter() {
+  if (jeton && window.google && google.accounts) google.accounts.oauth2.revoke(jeton, () => {});
+  jeton = null; expiration = 0; stock.ecrire('dejaConnecte', false);
+  try { sessionStorage.removeItem('relais.jeton'); } catch {}
+  majPuce(); toast('Déconnecté');
+}
+
+/* ====================== Appels à l'API Drive ====================== */
+class ErreurDrive extends Error { constructor(msg, statut) { super(msg); this.statut = statut; } }
+
+async function appelDrive(url, options = {}, essais = 5) {
+  for (let n = 0; ; n++) {
+    let r;
+    try {
+      r = await fetch(url, { ...options, headers: { Authorization: 'Bearer ' + jeton, ...(options.headers || {}) } });
+    } catch (e) {
+      if (n < essais) { await pause(1000 * 2 ** n); continue; }
+      throw new ErreurDrive('Réseau indisponible', 0);
+    }
+    if (r.ok) return r;
+    if ((r.status === 429 || r.status >= 500 || r.status === 403 && /rate|quota/i.test(await r.clone().text())) && n < essais) {
+      await pause(1000 * 2 ** n + Math.random() * 500); continue;
+    }
+    let msg = 'Erreur ' + r.status;
+    try { const j = await r.json(); if (j.error && j.error.message) msg += ' : ' + j.error.message; } catch {}
+    if (r.status === 401) { jeton = null; expiration = 0; majPuce(); msg = 'Session Google expirée, reconnecte-toi puis réessaie.'; }
+    throw new ErreurDrive(msg, r.status);
+  }
+}
+const q = t => "'" + String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+
+async function chercherDossier(nom, parent) {
+  const requete = `name=${q(nom)} and mimeType='${TYPE_DOSSIER}' and ${q(parent)} in parents and trashed=false`;
+  const r = await appelDrive(`${API}/files?q=${encodeURIComponent(requete)}&fields=files(id,webViewLink)&pageSize=1&spaces=drive`);
+  const j = await r.json();
+  return j.files && j.files[0] || null;
+}
+async function creerDossier(nom, parent) {
+  const r = await appelDrive(`${API}/files?fields=id,webViewLink`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({ name: nom, mimeType: TYPE_DOSSIER, parents: [parent] })
+  });
+  return r.json();
+}
+async function dossierRacine() {
+  const nom = reglages.racine;
+  const cache = stock.lire('racineId', null);
+  if (cache && cache.nom === nom) {
+    try {
+      const r = await appelDrive(`${API}/files/${cache.id}?fields=id,trashed`, {}, 1);
+      const j = await r.json(); if (!j.trashed) return cache.id;
+    } catch (e) { if (e.statut === 401) throw e; }
+  }
+  const d = await chercherDossier(nom, 'root') || await creerDossier(nom, 'root');
+  stock.ecrire('racineId', { nom, id: d.id });
+  return d.id;
+}
+async function nomLibre(nom, parent) {
+  if (!await chercherDossier(nom, parent)) return nom;
+  for (let i = 2; i < 100; i++) { const n = `${nom} (${i})`; if (!await chercherDossier(n, parent)) return n; }
+  return nom + ' ' + Date.now();
+}
+
+async function envoyerFichier(nom, parent, blob) {
+  const type = blob.type || typeMime(nom);
+  const meta = JSON.stringify({ name: nom, parents: [parent] });
+  if (blob.size <= SEUIL_SIMPLE) {
+    const frontiere = 'relais' + Math.random().toString(36).slice(2);
+    const corps = new Blob([
+      `--${frontiere}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`,
+      `--${frontiere}\r\nContent-Type: ${type}\r\n\r\n`, blob, `\r\n--${frontiere}--`
+    ]);
+    const r = await appelDrive(`${API_ENVOI}/files?uploadType=multipart&fields=id`, {
+      method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + frontiere }, body: corps
+    });
+    return r.json();
+  }
+  // Gros fichier : envoi reprenable en deux temps
+  const r1 = await appelDrive(`${API_ENVOI}/files?uploadType=resumable&fields=id`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': type }, body: meta
+  });
+  const adresse = r1.headers.get('Location');
+  if (!adresse) throw new ErreurDrive('Le Drive n\'a pas fourni d\'adresse d\'envoi', 0);
+  const r2 = await appelDrive(adresse, { method: 'PUT', headers: { 'Content-Type': type }, body: blob });
+  return r2.json();
+}
+
+const TYPES = {
+  pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv', html: 'text/html', htm: 'text/html',
+  css: 'text/css', js: 'text/javascript', json: 'application/json', xml: 'application/xml', py: 'text/x-python',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+  bmp: 'image/bmp', heic: 'image/heic', mp4: 'video/mp4', mov: 'video/quicktime', mp3: 'audio/mpeg', wav: 'audio/wav',
+  zip: 'application/zip', doc: 'application/msword', xls: 'application/vnd.ms-excel', ppt: 'application/vnd.ms-powerpoint',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  odt: 'application/vnd.oasis.opendocument.text', ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  odp: 'application/vnd.oasis.opendocument.presentation', stl: 'model/stl', obj: 'model/obj', step: 'model/step', stp: 'model/step',
+  dxf: 'image/vnd.dxf', gcode: 'text/x-gcode', ino: 'text/plain', c: 'text/x-c', cpp: 'text/x-c++', h: 'text/x-c'
+};
+function typeMime(nom) { const e = (nom.split('.').pop() || '').toLowerCase(); return TYPES[e] || 'application/octet-stream'; }
+
+/* ====================== Lots (un lot = un dossier sur le Drive) ====================== */
+let lots = [];
+let envoiEnCours = false;
+let compteur = 0;
+
+function sansExtension(n) { return n.replace(/\.zip$/i, '') || n; }
+function nomDuJour() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  return `Envoi du ${z(d.getDate())}-${z(d.getMonth() + 1)}-${d.getFullYear()} ${z(d.getHours())}h${z(d.getMinutes())}`;
+}
+
+async function ajouterFichiers(liste) {
+  const zips = [], autres = [];
+  for (const f of liste) (/\.zip$/i.test(f.name) || /zip/.test(f.type) ? zips : autres).push(f);
+  for (const f of zips) {
+    const lot = { id: ++compteur, nom: sansExtension(f.name), source: f.name, entrees: [], etat: 'lecture' };
+    lots.push(lot); afficherLots();
+    try {
+      if (!window.JSZip) throw new Error('module de décompression non chargé (réseau ?)');
+      const zip = await JSZip.loadAsync(f);
+      zip.forEach((chemin, e) => {
+        if (e.dir || IGNORES.test(chemin)) return;
+        lot.entrees.push({ chemin, taille: e._data && e._data.uncompressedSize || 0, blob: () => e.async('blob') });
+      });
+      // Si tout est rangé dans un unique dossier, on l'enlève pour éviter « projet/projet/… »
+      const premiers = new Set(lot.entrees.map(x => x.chemin.split('/')[0]));
+      if (premiers.size === 1 && lot.entrees.every(x => x.chemin.includes('/'))) {
+        const [unique] = premiers;
+        if (unique) { lot.nom = unique; lot.entrees.forEach(x => x.chemin = x.chemin.slice(unique.length + 1)); }
+      }
+      lot.etat = lot.entrees.length ? 'pret' : 'vide';
+    } catch (e) {
+      lot.etat = 'erreur'; lot.message = 'Lecture du zip impossible : ' + e.message;
+    }
+    afficherLots();
+  }
+  if (autres.length) {
+    lots.push({ id: ++compteur, nom: nomDuJour(), source: autres.length + ' fichier(s)', etat: 'pret',
+      entrees: autres.map(f => ({ chemin: f.name, taille: f.size, blob: async () => f })) });
+    afficherLots();
+  }
+}
+
+function afficherLots() {
+  $('sectionLots').classList.toggle('cache', !lots.length);
+  $('nomRacine').textContent = '« ' + reglages.racine + ' »';
+  const html = lots.map(l => {
+    const total = l.entrees.reduce((s, e) => s + e.taille, 0);
+    const echecs = (l.echecs || []).length;
+    let etat = '';
+    if (l.etat === 'lecture') etat = '<span class="doux">Lecture du zip…</span>';
+    else if (l.etat === 'vide') etat = '<span class="attention">Ce zip ne contient aucun fichier.</span>';
+    else if (l.etat === 'erreur') etat = `<span class="erreur">${echapper(l.message)}</span>`;
+    else if (l.etat === 'envoi') etat = `<span class="doux">Envoi : ${l.faits || 0} / ${l.entrees.length}</span>`;
+    else etat = `<span class="doux">${l.entrees.length} fichier(s) · ${taille(total)}</span>`;
+    if (echecs) etat += ` · <span class="erreur">${echecs} en échec</span>`;
+    const apercu = l.entrees.slice(0, 300).map(e => `<li>${echapper(e.chemin)} <span class="doux">(${taille(e.taille)})</span></li>`).join('')
+      + (l.entrees.length > 300 ? `<li class="doux">… et ${l.entrees.length - 300} autres</li>` : '');
+    return `<div class="lot" data-id="${l.id}">
+      <div class="entete">
+        <input type="text" value="${echapper(l.nom)}" aria-label="Nom du dossier" data-champ="nom" ${envoiEnCours ? 'disabled' : ''}>
+        <button class="petit" data-retirer="${l.id}" type="button" ${envoiEnCours ? 'disabled' : ''} aria-label="Retirer">✕</button>
+      </div>
+      <div class="etat">📦 ${echapper(l.source)} — ${etat}</div>
+      ${l.entrees.length ? `<details><summary>Voir les fichiers</summary><ul>${apercu}</ul></details>` : ''}
+    </div>`;
+  }).join('');
+  $('listeLots').innerHTML = html;
+  const prets = lots.some(l => l.etat === 'pret');
+  $('btnEnvoyer').disabled = envoiEnCours || !prets;
+  $('btnVider').disabled = envoiEnCours;
+}
+
+$('listeLots').addEventListener('input', e => {
+  if (e.target.dataset.champ !== 'nom') return;
+  const lot = lots.find(l => l.id == e.target.closest('.lot').dataset.id);
+  if (lot) lot.nom = e.target.value;
+});
+$('listeLots').addEventListener('click', e => {
+  const id = e.target.dataset && e.target.dataset.retirer;
+  if (id) { lots = lots.filter(l => l.id != id); afficherLots(); }
+});
+
+/* ====================== Envoi ====================== */
+function nettoyerNom(n) { return (n || '').replace(/[\/\\]/g, '-').trim() || nomDuJour(); }
+
+async function envoyerTout() {
+  if (envoiEnCours) return;
+  const aEnvoyer = lots.filter(l => l.etat === 'pret');
+  if (!aEnvoyer.length) return;
+  try { await obtenirJeton(); } catch (e) { toast(e.message); return; }
+
+  envoiEnCours = true; afficherLots();
+  const totalFichiers = aEnvoyer.reduce((s, l) => s + (l.echecs ? l.echecs.length : l.entrees.length), 0);
+  let faitsGlobal = 0;
+  $('barre').classList.remove('cache'); $('texteProgres').classList.remove('cache');
+  const progres = (texte) => {
+    $('barre').firstElementChild.style.width = (totalFichiers ? 100 * faitsGlobal / totalFichiers : 0) + '%';
+    $('texteProgres').textContent = texte;
+  };
+
+  try {
+    const racine = await dossierRacine();
+    for (const lot of aEnvoyer) {
+      lot.etat = 'envoi'; lot.faits = 0; afficherLots();
+      // Reprise après échec : on réutilise le dossier déjà créé
+      if (!lot.dossierId) {
+        progres(`Création du dossier « ${lot.nom} »…`);
+        lot.nomFinal = await nomLibre(nettoyerNom(lot.nom), racine);
+        const d = await creerDossier(lot.nomFinal, racine);
+        lot.dossierId = d.id; lot.lien = d.webViewLink || `https://drive.google.com/drive/folders/${d.id}`;
+        lot.sousDossiers = { '': d.id };
+      }
+      const liste = lot.echecs || lot.entrees;
+      // Sous-dossiers, du moins profond au plus profond
+      const chemins = [...new Set(liste.flatMap(e => {
+        const parties = e.chemin.split('/').slice(0, -1);
+        return parties.map((_, i) => parties.slice(0, i + 1).join('/'));
+      }))].sort((a, b) => a.split('/').length - b.split('/').length);
+      for (const c of chemins) {
+        if (lot.sousDossiers[c]) continue;
+        const parent = lot.sousDossiers[c.split('/').slice(0, -1).join('/')];
+        const nom = c.split('/').pop();
+        lot.sousDossiers[c] = (await chercherDossier(nom, parent) || await creerDossier(nom, parent)).id;
+      }
+      // Fichiers, plusieurs à la fois
+      const file = liste.slice(); const echecs = [];
+      const travailleur = async () => {
+        while (file.length) {
+          const e = file.shift();
+          const morceaux = e.chemin.split('/');
+          progres(`${lot.nomFinal} : ${morceaux[morceaux.length - 1]}`);
+          try {
+            await envoyerFichier(morceaux.pop(), lot.sousDossiers[morceaux.join('/')], await e.blob());
+          } catch (err) {
+            e.erreur = err.message; echecs.push(e);
+            if (err.statut === 401) { file.length = 0; }
+          }
+          lot.faits++; faitsGlobal++;
+          const el = document.querySelector(`.lot[data-id="${lot.id}"] .etat`);
+          if (el) el.innerHTML = `📦 ${echapper(lot.source)} — <span class="doux">Envoi : ${lot.faits} / ${liste.length}</span>`;
+        }
+      };
+      await Promise.all(Array.from({ length: ENVOIS_SIMULTANES }, travailleur));
+      if (echecs.length) {
+        lot.echecs = echecs; lot.etat = 'pret';
+      } else {
+        lot.etat = 'fini'; delete lot.echecs;
+        ajouterHistorique(lot);
+      }
+      afficherResultat(lot, echecs);
+      if (echecs.some(e => /expirée/.test(e.erreur))) break;
+    }
+    progres('Terminé.');
+  } catch (e) {
+    progres('Arrêt : ' + e.message);
+    toast(e.message);
+    aEnvoyer.forEach(l => { if (l.etat === 'envoi') l.etat = 'pret'; });
+  } finally {
+    envoiEnCours = false;
+    lots = lots.filter(l => l.etat !== 'fini');
+    afficherLots();
+    if (!lots.length) setTimeout(() => { $('barre').classList.add('cache'); $('texteProgres').classList.add('cache'); }, 1500);
+  }
+}
+
+function phraseClaude(lot) {
+  return `Regarde le dossier « ${reglages.racine}/${lot.nomFinal} » dans mon Google Drive : ${lot.lien}`;
+}
+function afficherResultat(lot, echecs) {
+  $('sectionResultats').classList.remove('cache');
+  const div = document.createElement('div');
+  div.className = 'resultat' + (echecs.length ? ' echec' : '');
+  const nb = lot.entrees.length - echecs.length;
+  div.innerHTML = echecs.length
+    ? `<strong>⚠️ ${echapper(lot.nomFinal)}</strong> — ${echecs.length} fichier(s) non envoyé(s). Appuie à nouveau sur « Envoyer » pour réessayer uniquement ceux-là.
+       <ul class="doux">${echecs.slice(0, 10).map(e => `<li>${echapper(e.chemin)} : ${echapper(e.erreur)}</li>`).join('')}</ul>`
+    : `<strong>✅ ${echapper(lot.nomFinal)}</strong> — ${nb} fichier(s) dans « ${echapper(reglages.racine)} ».`;
+  const rangee = document.createElement('div'); rangee.className = 'rangee';
+  rangee.innerHTML = `<a class="bouton" href="${echapper(lot.lien)}" target="_blank" rel="noopener">Ouvrir dans Drive</a>
+    <button type="button" class="principal">📋 Copier la phrase pour Claude</button>`;
+  rangee.querySelector('button').onclick = () => copier(phraseClaude(lot));
+  div.appendChild(rangee);
+  $('listeResultats').prepend(div);
+}
+async function copier(texte) {
+  try { await navigator.clipboard.writeText(texte); toast('Copié ! Colle-le dans Claude.'); }
+  catch { prompt('Copie ce texte :', texte); }
+}
+
+/* ====================== Historique ====================== */
+function ajouterHistorique(lot) {
+  const h = stock.lire('historique', []);
+  h.unshift({ nom: lot.nomFinal, racine: reglages.racine, lien: lot.lien, n: lot.entrees.length, date: Date.now() });
+  stock.ecrire('historique', h.slice(0, 15));
+  afficherHistorique();
+}
+function afficherHistorique() {
+  const h = stock.lire('historique', []);
+  $('sectionHistorique').classList.toggle('cache', !h.length);
+  $('listeHistorique').innerHTML = h.map((x, i) => `<li><a href="${echapper(x.lien)}" target="_blank" rel="noopener">${echapper(x.racine)}/${echapper(x.nom)}</a>
+    <span class="doux">· ${x.n} fichier(s) · ${new Date(x.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+    <button class="petit" type="button" data-copier="${i}">📋</button></li>`).join('');
+}
+$('listeHistorique').addEventListener('click', e => {
+  const i = e.target.dataset && e.target.dataset.copier;
+  if (i === undefined) return;
+  const x = stock.lire('historique', [])[i];
+  if (x) copier(`Regarde le dossier « ${x.racine}/${x.nom} » dans mon Google Drive : ${x.lien}`);
+});
+
+/* ====================== Fichiers reçus par « Partager » ====================== */
+async function recupererPartage() {
+  if (!new URLSearchParams(location.search).has('partage') || !('caches' in window)) return;
+  history.replaceState(null, '', location.pathname);
+  const cache = await caches.open('relais-drive-partage');
+  const fichiers = [];
+  for (const req of await cache.keys()) {
+    const r = await cache.match(req);
+    const b = await r.blob();
+    fichiers.push(new File([b], decodeURIComponent(r.headers.get('X-Nom') || 'fichier'), { type: b.type }));
+    await cache.delete(req);
+  }
+  if (fichiers.length) { toast(fichiers.length + ' fichier(s) reçu(s)'); ajouterFichiers(fichiers); }
+}
+
+/* ====================== Interface ====================== */
+function majConfiguration() {
+  const manque = !reglages.idClient;
+  $('configuration').classList.toggle('cache', !manque);
+  $('origineActuelle').textContent = location.origin;
+  $('champIdClient2').value = reglages.idClient;
+  $('champRacine').value = stock.lire('racine', '');
+}
+function enregistrerId(valeur) {
+  const v = valeur.trim();
+  if (v && !/\.apps\.googleusercontent\.com$/.test(v)) { toast('L\'ID doit finir par .apps.googleusercontent.com'); return false; }
+  if (v !== reglages.idClient) { clientJeton = null; jeton = null; expiration = 0; stock.ecrire('dejaConnecte', false); }
+  stock.ecrire('idClient', v); majConfiguration(); majPuce(); return true;
+}
+$('btnEnregistrerId').onclick = () => { if (enregistrerId($('champIdClient').value)) toast('ID enregistré'); };
+$('btnEnregistrerReglages').onclick = () => {
+  if (!enregistrerId($('champIdClient2').value)) return;
+  stock.ecrire('racine', $('champRacine').value.replace(/[\/\\]/g, '-').trim());
+  afficherLots(); toast('Réglages enregistrés');
+};
+$('btnDeconnexion').onclick = deconnecter;
+$('puceCompte').onclick = async () => {
+  if (connecte()) return toast('Déjà connecté à Google Drive');
+  if (!reglages.idClient) { $('configuration').scrollIntoView({ behavior: 'smooth' }); return; }
+  try { await obtenirJeton(); toast('Connecté'); } catch (e) { toast(e.message); }
+};
+$('btnChoisirZip').onclick = () => $('entreeZip').click();
+$('btnChoisirFichiers').onclick = () => $('entreeFichiers').click();
+for (const id of ['entreeZip', 'entreeFichiers']) $(id).onchange = e => { ajouterFichiers([...e.target.files]); e.target.value = ''; };
+$('btnEnvoyer').onclick = envoyerTout;
+$('btnVider').onclick = () => { lots = []; afficherLots(); };
+
+const zone = $('zoneDepot');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('survol'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('survol'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('survol'); ajouterFichiers([...e.dataTransfer.files]); });
+
+window.addEventListener('beforeunload', e => { if (envoiEnCours) { e.preventDefault(); e.returnValue = ''; } });
+
+majConfiguration(); majPuce(); afficherHistorique(); afficherLots();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(() => recupererPartage()).catch(() => recupererPartage());
+else recupererPartage();
+</script>
+</body>
+</html>
